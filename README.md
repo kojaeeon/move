@@ -13,4 +13,5 @@ Windows 패키지 설치 시 안내된 종속성은 `Microsoft.VCRedist.2015+.x6
 필요한 PC에서는 [Microsoft 공식 VC++ x64 런타임](https://aka.ms/vc14/vc_redist.x64.exe)을
 설치하세요. [Microsoft 안내](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
 
-이 저장소에는 Helix 압축파일을 보관하며, VC++ 런타임 설치 파일은 위 공식 링크에서 제공합니다.
+VC++ x64 런타임 설치파일: [vc_redist.x64.zip](vc_redist.x64.zip). 압축을 풀고 VC_redist.x64.exe를 실행하세요. ZIP 안의 README.txt에 공식 출처, 버전, SHA-256 및 Microsoft 서명 검증 결과가 있습니다.
+
