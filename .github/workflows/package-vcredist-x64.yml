@@ -1,0 +1,70 @@
+name: Package Microsoft VC++ x64 runtime
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/package-vcredist-x64.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download, verify Microsoft signature, and package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = 'https://aka.ms/vc14/vc_redist.x64.exe'
+          $work = Join-Path $env:RUNNER_TEMP 'vcredist-x64'
+          New-Item -ItemType Directory -Force $work | Out-Null
+          $exe = Join-Path $work 'VC_redist.x64.exe'
+          Invoke-WebRequest -Uri $source -OutFile $exe
+          $signature = Get-AuthenticodeSignature $exe
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+            throw "Invalid Microsoft signature: $($signature.Status)"
+          }
+          $version = (Get-Item $exe).VersionInfo.ProductVersion
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $downloaded = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+          @(
+            'Microsoft Visual C++ v14 Redistributable (x64)'
+            "Product version: $version"
+            "Downloaded (UTC): $downloaded"
+            "Official source: $source"
+            'Documentation: https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist'
+            "SHA-256 (VC_redist.x64.exe): $hash"
+            "Authenticode: $($signature.Status)"
+            "Publisher: $($signature.SignerCertificate.Subject)"
+            ''
+            'Extract the ZIP and run VC_redist.x64.exe on the target Windows PC.'
+          ) | Set-Content (Join-Path $work 'README.txt') -Encoding utf8
+          Compress-Archive -Path "$work/*" -DestinationPath 'vc_redist.x64.zip' -Force
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $PWD 'vc_redist.x64.zip'))
+          try {
+            $entry = $archive.GetEntry('VC_redist.x64.exe')
+            if ($null -eq $entry -or $entry.Length -ne (Get-Item $exe).Length) { throw 'ZIP validation failed' }
+          } finally { $archive.Dispose() }
+          $zipHash = (Get-FileHash 'vc_redist.x64.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$zipHash  vc_redist.x64.zip" | Set-Content 'vc_redist.x64.zip.sha256' -Encoding ascii
+          $readme = Get-Content 'README.md' -Raw
+          $readme = $readme.Replace('이 저장소에는 Helix 압축파일을 보관하며, VC++ 런타임 설치 파일은 위 공식 링크에서 제공합니다.', 'VC++ x64 런타임 설치파일: [vc_redist.x64.zip](vc_redist.x64.zip). 압축을 풀고 VC_redist.x64.exe를 실행하세요. ZIP 안의 README.txt에 공식 출처, 버전, SHA-256 및 Microsoft 서명 검증 결과가 있습니다.')
+          Set-Content 'README.md' $readme -Encoding utf8
+          Write-Output "Version: $version"
+          Write-Output "Installer bytes: $((Get-Item $exe).Length)"
+          Write-Output "ZIP bytes: $((Get-Item 'vc_redist.x64.zip').Length)"
+          Write-Output "Installer SHA256: $hash"
+          Write-Output "ZIP SHA256: $zipHash"
+      - name: Commit ZIP to main
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- vc_redist.x64.zip vc_redist.x64.zip.sha256 README.md
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          git commit -m "Add official Microsoft VC++ x64 runtime ZIP"
+          if ($LASTEXITCODE -ne 0) { throw 'Commit failed' }
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
