@@ -1,0 +1,37 @@
+name: Package JDT LS portable
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download official JDT LS and split for source-only access
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd tools/jdtls
+          URL="https://download.eclipse.org/jdtls/milestones/1.63.0/jdt-language-server-1.63.0-202610191322.tar.gz"
+          curl --fail --location --retry 3 "$URL" -o jdtls.tar.gz
+          test -s jdtls.tar.gz
+          tar tzf jdtls.tar.gz >/dev/null
+          sha256sum jdtls.tar.gz > SHA256SUMS
+          rm -f jdtls.part*
+          split -b 8m -d -a 3 jdtls.tar.gz jdtls.part
+          sha256sum jdtls.part* >> SHA256SUMS
+          rm jdtls.tar.gz
+      - name: Commit portable parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/jdtls/jdtls.part* tools/jdtls/SHA256SUMS
+          if ! git diff --cached --quiet; then
+            git commit -m "build: package JDT LS 1.63.0 portable chunks"
+            git push
+          fi
