@@ -1,35 +1,36 @@
 #!/usr/bin/env python3
-"""UI 폴더 + JAR 내부 파일 → FTP. 수정일시(초)가 다르거나 없으면 복사.
+"""UI 폴더 + JAR 내부 파일 → SFTP (이전 파일명 유지).
 
+설치: python -m pip install paramiko
 실행: python ftp_sync.py
-서버: MLSD(목록/UTC 시간), MFMT(업로드 후 원본 시간 보존) 지원 필요.
-DRY_RUN=True로 목록 확인 후 False로 변경. 서버 파일은 삭제하지 않음.
-JAR는 일반 라이브러리 JAR 기준이며 압축을 풀어 내부 파일을 전송함.
+HOST/PORT/USER 및 경로를 설정하고 DRY_RUN=True로 확인 후 False로 변경.
+수정일시(초)가 다르거나 없는 파일만 복사. 원격 파일 삭제 안 함.
+JAR 대상은 압축파일이 아니라 서버에서 이미 풀려 있는 폴더 경로.
 """
 import os
+import stat
 import zipfile
 from datetime import datetime, timedelta, timezone
-from ftplib import FTP, FTP_TLS
 from getpass import getpass
 from pathlib import Path, PurePosixPath
 
-# ── 설정: 원격 경로는 Windows 경로가 아닌 FTP에서 보이는 경로 ──
-HOST, PORT = "ftp.example.com", 21
+import paramiko
+
+HOST, PORT = "sftp.example.com", 22  # ezTerm의 SFTP 주소/포트
 USER = "user"
-PASSWORD = os.getenv("FTP_PASSWORD", "")  # 비어 있으면 실행 시 입력
-TLS = False                             # 명시적 FTPS일 때 True
+PASSWORD = os.getenv("SFTP_PASSWORD", "")
 DRY_RUN = True
 UI_ENABLED = JAVA_ENABLED = True
 UI_SOURCE = Path(r"C:\Work1\SCDBS\workspace\50198-kais-ui\target\kais-sys-ui\kaml\cdd")
 UI_TARGET = "/deployments/kais-web.war/ui/kaml/cdd"
 JAVA_JAR = Path(r"C:\Work1\SCDBS\workspace\51006-kais-cdd-app\target\kais-cdd-app.jar")
 JAVA_TARGET = "/deployments/kais-web.war/WEB-INF/lib/kais-cdd-app-1.0.0-SNAPSHOT.jar"
-# JAVA_TARGET은 '.jar'로 끝나도 FTP 서버에 실제로 존재하는 '폴더' 경로.
-JAR_TIMEZONE = timezone(timedelta(hours=9))  # JAR를 빌드한 PC의 시간대
+JAR_TIMEZONE = timezone(timedelta(hours=9))
 IGNORE_DIRS = {".git", ".idea", ".settings", "target", "node_modules", "__pycache__"}
 IGNORE_SUFFIXES = {".bak", ".tmp", ".swp", ".pyc"}
 IGNORE_FILES = {".DS_Store", "Thumbs.db"}
 JAR_EXCLUDE_PREFIXES = ()
+KNOWN_HOSTS = Path.home() / ".ssh" / "known_hosts"
 
 
 def sources():
@@ -57,74 +58,92 @@ def sources():
 
 
 class Sync:
-    def __init__(self, ftp):
-        self.ftp, self.listings, self.created = ftp, {}, {"/"}
+    def __init__(self, sftp):
+        self.sftp, self.listings, self.created = sftp, {}, {"/"}
 
     def listing(self, folder):
         if folder not in self.listings:
-            p = PurePosixPath(folder)
-            if folder != "/":
-                parent = self.listing(str(p.parent))
-                if p.name not in parent:
-                    self.listings[folder] = {}
-                    return self.listings[folder]
-                if parent[p.name].get("type") != "dir":
-                    raise NotADirectoryError(folder)
-            self.listings[folder] = dict(self.ftp.mlsd(folder))
-            self.created.add(folder)
+            try:
+                self.listings[folder] = {a.filename: a for a in self.sftp.listdir_attr(folder)}
+            except FileNotFoundError:
+                self.listings[folder] = {}
+            else:
+                self.created.add(folder)
         return self.listings[folder]
 
     def mkdir(self, folder):
-        if folder not in self.created:
+        if folder in self.created:
+            return
+        try:
+            attrs = self.sftp.stat(folder)
+        except FileNotFoundError:
             self.mkdir(str(PurePosixPath(folder).parent))
-            self.ftp.mkd(folder)
-            self.created.add(folder)
+            self.sftp.mkdir(folder)
+        else:
+            if not stat.S_ISDIR(attrs.st_mode):
+                raise NotADirectoryError(folder)
+        self.created.add(folder)
 
     def copy(self, target, name, stamp, opener):
         path = PurePosixPath(target) / name
-        if not path.is_absolute() or ".." in path.parts or any(c in str(path) for c in "\r\n"):
-            raise ValueError(f"잘못된 FTP 경로: {path}")
+        if not path.is_absolute() or ".." in path.parts or "\\" in str(path) or any(c in str(path) for c in "\r\n\0"):
+            raise ValueError(f"잘못된 SFTP 경로: {path}")
         folder = str(path.parent)
-        facts = self.listing(folder).get(path.name)
-        if facts is not None:
-            if facts.get("type") != "file" or "modify" not in facts:
-                raise ValueError(f"파일 수정일시를 읽을 수 없음: {path}")
-            remote = datetime.strptime(facts["modify"].split(".")[0], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-            if int(remote.timestamp()) == stamp:
+        attrs = self.listing(folder).get(path.name)
+        if attrs is not None:
+            if not stat.S_ISREG(attrs.st_mode) or attrs.st_mtime is None:
+                raise ValueError(f"일반 파일/수정일시 확인 불가: {path}")
+            if int(attrs.st_mtime) == stamp:
                 return False
-        utc = datetime.fromtimestamp(stamp, timezone.utc).strftime("%Y%m%d%H%M%S")
         if not DRY_RUN:
             self.mkdir(folder)
             with opener() as stream:
-                self.ftp.storbinary(f"STOR {path}", stream)
-            # 필수: 서버에 업로드 시각 대신 원본 시각을 저장해야 다음 실행에 건너뜀.
-            self.ftp.sendcmd(f"MFMT {utc} {path}")
-            check = self.ftp.sendcmd(f"MDTM {path}").split()[-1].split(".")[0]
-            if check != utc:
+                self.sftp.putfo(stream, str(path), confirm=True)
+            # 업로드 후 원본 시간 보존 → 다음 실행에서 동일 파일 건너뜀.
+            self.sftp.utime(str(path), (stamp, stamp))
+            current = self.sftp.stat(str(path))
+            if int(current.st_mtime) != stamp:
                 raise RuntimeError(f"원본 수정일시 보존 실패: {path}")
+            self.listings[folder][path.name] = current
         print(f"{name} | {datetime.fromtimestamp(stamp):%Y-%m-%d %H:%M:%S}")
         return True
 
 
 def main():
     copied = skipped = failed = 0
+    stage = "설정 확인"
     try:
-        with (FTP_TLS() if TLS else FTP()) as ftp:
-            ftp.connect(HOST, PORT, timeout=30)
-            ftp.login(USER, PASSWORD or getpass("FTP password: "))
-            if TLS:
-                ftp.prot_p()
-            sync = Sync(ftp)
-            print("[미리보기]" if DRY_RUN else "[FTP 복사]")
-            print("파일명 | 변경일시")
-            for target, name, stamp, opener in sources():
-                if sync.copy(target, name, stamp, opener):
-                    copied += 1
-                else:
-                    skipped += 1
+        if HOST == "sftp.example.com":
+            raise ValueError("HOST/PORT/USER를 ezTerm의 SFTP 설정으로 변경하세요.")
+        password = PASSWORD or getpass("SFTP password: ")
+        with paramiko.SSHClient() as ssh:
+            ssh.load_system_host_keys()
+            KNOWN_HOSTS.parent.mkdir(parents=True, exist_ok=True)
+            if not KNOWN_HOSTS.exists():
+                KNOWN_HOSTS.touch(mode=0o600)
+            ssh.load_host_keys(str(KNOWN_HOSTS))
+            # 처음 접속한 호스트 키는 저장, 저장된 키가 변경된 경우 접속 거부.
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            stage = "SFTP 연결/인증"
+            ssh.connect(HOST, port=PORT, username=USER, password=password,
+                        timeout=30, banner_timeout=30, auth_timeout=30,
+                        look_for_keys=False, allow_agent=False)
+            stage = "SFTP 채널 열기"
+            with ssh.open_sftp() as sftp:
+                sftp.get_channel().settimeout(30)
+                sync = Sync(sftp)
+                print("[미리보기]" if DRY_RUN else "[SFTP 복사]")
+                print("파일명 | 변경일시")
+                stage = "파일 비교/복사"
+                for target, name, stamp, opener in sources():
+                    stage = f"파일 비교/복사: {name}"
+                    if sync.copy(target, name, stamp, opener):
+                        copied += 1
+                    else:
+                        skipped += 1
     except Exception as exc:
         failed += 1
-        print(f"오류: {exc}")
+        print(f"오류 [{stage}]: {exc}")
     label = "복사예정" if DRY_RUN else "복사"
     print(f"SUMMARY: {label} {copied} / 건너뜀 {skipped} / 실패 {failed}")
     return bool(failed)
