@@ -1,0 +1,40 @@
+name: Transfer WordCraft Portable
+on:
+  push:
+    paths:
+      - '.github/workflows/transfer-wordcraft.yml'
+permissions:
+  contents: write
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify official portable ZIP
+        run: |
+          curl -fL --retry 3 -o /tmp/wordcraft.zip https://github.com/storytold/wordcraft/releases/download/v0.18.1/wordcraft-0.18.1-windows-x64-portable.zip
+          echo "257f670514057cb14967b88c85ac82d165da43ee7671e185acead61420af0389  /tmp/wordcraft.zip" | sha256sum -c -
+          unzip -t /tmp/wordcraft.zip
+      - name: Replace repository files
+        shell: python
+        run: |
+          import subprocess, pathlib, hashlib
+          subprocess.run(["git", "rm", "-r", "--ignore-unmatch", "."], check=True)
+          data = pathlib.Path("/tmp/wordcraft.zip").read_bytes()
+          name = "wordcraft-0.18.1-windows-x64-portable.zip"
+          parts = []
+          for i, offset in enumerate(range(0, len(data), 25*1024*1024), 1):
+              p = pathlib.Path(name + f".{i:03d}")
+              p.write_bytes(data[offset:offset+25*1024*1024])
+              parts.append(p)
+          assert b"".join(p.read_bytes() for p in parts) == data
+          command = 'copy /b ' + '+'.join('"'+p.name+'"' for p in parts) + ' "'+name+'"'
+          pathlib.Path("merge_wordcraft.bat").write_bytes(('@echo off\r\ncd /d "%~dp0"\r\n'+command+'\r\nif errorlevel 1 exit /b 1\r\necho ZIP merged. Extract the ZIP to run WordCraft.\r\npause\r\n').encode("ascii"))
+          pathlib.Path("README.md").write_text("# WordCraft 0.18.1 Windows x64 Portable\n\n공식 포터블 ZIP을 25MiB씩 나눈 파일입니다.\n\n1. zip.001 ~ zip.005와 merge_wordcraft.bat를 같은 폴더에 다운로드합니다.\n2. merge_wordcraft.bat를 실행하여 원본 ZIP을 복원합니다.\n3. ZIP을 압축 해제하고 WordCraft 실행 파일을 실행합니다.\n\n7-Zip에서 .zip.001을 열어 압축 해제할 수도 있습니다.\n\n- 원본: https://github.com/storytold/wordcraft/releases/tag/v0.18.1\n- 원본 ZIP: 117,973,734 bytes\n- SHA-256: 257f670514057cb14967b88c85ac82d165da43ee7671e185acead61420af0389\n- 공식 SHA-256과 ZIP 무결성 및 분할 후 복원 일치를 검증했습니다.\n", encoding="utf-8")
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace existing files with WordCraft 0.18.1 x64 portable archive"
+          git push origin HEAD:main
