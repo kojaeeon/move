@@ -1,0 +1,67 @@
+name: Import ezTerm portable
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-ezterm.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: import-ezterm
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download latest successful main build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api 'repos/kojaeeon/ezTerm/actions/workflows/windows-exe.yml/runs?branch=main&status=success&event=push&per_page=1' > /tmp/ezterm-runs.json
+          RUN_ID=$(jq -er '.workflow_runs[0].id' /tmp/ezterm-runs.json)
+          SOURCE_SHA=$(jq -er '.workflow_runs[0].head_sha' /tmp/ezterm-runs.json)
+          gh api "repos/kojaeeon/ezTerm/actions/runs/$RUN_ID/artifacts" > /tmp/ezterm-artifacts.json
+          ARTIFACT_ID=$(jq -er '[.artifacts[] | select(.name == "ezTerm-windows-x64-exe" and .expired == false)][0].id' /tmp/ezterm-artifacts.json)
+          DIGEST=$(jq -er '[.artifacts[] | select(.name == "ezTerm-windows-x64-exe" and .expired == false)][0].digest' /tmp/ezterm-artifacts.json)
+          gh api "repos/kojaeeon/ezTerm/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/ezterm-portable.zip
+          echo "${DIGEST#sha256:}  /tmp/ezterm-portable.zip" | sha256sum --check
+          unzip -t /tmp/ezterm-portable.zip
+          unzip -Z1 /tmp/ezterm-portable.zip | grep -Fx 'ezterm.exe'
+          mkdir -p ezterm
+          cp /tmp/ezterm-portable.zip ezterm/ezTerm-portable-windows-x64.zip
+          sha256sum ezterm/ezTerm-portable-windows-x64.zip > ezterm/SHA256SUMS
+          cat > ezterm/README.md <<EOF
+          # ezTerm portable (Windows x64)
+
+          Download and extract ezTerm-portable-windows-x64.zip, then run ezterm.exe.
+          Microsoft Edge WebView2 Runtime must be available on the PC.
+          This EXE-only build does not include the optional VcXsrv distribution.
+
+          Source commit: $SOURCE_SHA
+          Build: https://github.com/kojaeeon/ezTerm/actions/runs/$RUN_ID
+          EOF
+          echo "SOURCE_SHA=$SOURCE_SHA" >> "$GITHUB_ENV"
+      - name: Commit portable
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ezterm
+          if git diff --cached --quiet; then
+            echo 'Portable is already up to date.'
+            exit 0
+          fi
+          git commit -m "Update ezTerm portable from $SOURCE_SHA"
+          git pull --rebase origin main
+          git push origin HEAD:main
