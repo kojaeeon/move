@@ -33,7 +33,7 @@ JAR_EXCLUDE_PREFIXES = ()
 KNOWN_HOSTS = Path.home() / ".ssh" / "known_hosts"
 
 
-def sources():
+def sources(stats):
     if UI_ENABLED:
         if not UI_SOURCE.is_dir():
             raise FileNotFoundError(UI_SOURCE)
@@ -42,7 +42,13 @@ def sources():
             for name in sorted(files):
                 p = Path(folder) / name
                 if name not in IGNORE_FILES and p.suffix.lower() not in IGNORE_SUFFIXES:
-                    yield UI_TARGET, p.relative_to(UI_SOURCE).as_posix(), int(p.stat().st_mtime), lambda p=p: p.open("rb")
+                    try:
+                        stamp = int(p.stat().st_mtime)
+                    except OSError as exc:
+                        stats["failed"] += 1
+                        print(f"[SKIP ERROR] {p} | {exc}")
+                        continue
+                    yield UI_TARGET, p.relative_to(UI_SOURCE).as_posix(), stamp, lambda p=p: p.open("rb")
     if JAVA_ENABLED:
         with zipfile.ZipFile(JAVA_JAR) as jar:
             for entry in jar.infolist():
@@ -111,6 +117,7 @@ class Sync:
 
 def main():
     copied = skipped = failed = 0
+    source_stats = {"failed": 0}
     stage = "설정 확인"
     try:
         if HOST == "sftp.example.com":
@@ -135,15 +142,21 @@ def main():
                 print("[미리보기]" if DRY_RUN else "[SFTP 복사]")
                 print("파일명 | 변경일시")
                 stage = "파일 비교/복사"
-                for target, name, stamp, opener in sources():
+                for target, name, stamp, opener in sources(source_stats):
                     stage = f"파일 비교/복사: {name}"
-                    if sync.copy(target, name, stamp, opener):
-                        copied += 1
-                    else:
-                        skipped += 1
+                    try:
+                        if sync.copy(target, name, stamp, opener):
+                            copied += 1
+                        else:
+                            skipped += 1
+                    except (OSError, ValueError, RuntimeError, paramiko.SSHException) as exc:
+                        failed += 1
+                        print(f"[SKIP ERROR] {name} | {exc}")
+                        continue
     except Exception as exc:
         failed += 1
         print(f"오류 [{stage}]: {exc}")
+    failed += source_stats["failed"]
     label = "복사예정" if DRY_RUN else "복사"
     print(f"SUMMARY: {label} {copied} / 건너뜀 {skipped} / 실패 {failed}")
     return bool(failed)
