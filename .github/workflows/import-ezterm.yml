@@ -1,5 +1,5 @@
 name: Import ezTerm portable
-# Refresh requested for file-list sorting build 993bc828869b371bde07831795d6c34d2825a13d.
+# Refresh requested for SFTP absolute-path copy build 48d0d31ca78ee2eb326c6d3d859a0a9c7ce0d831.
 
 on:
   workflow_dispatch:
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Download latest successful main build
@@ -28,9 +28,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh api 'repos/kojaeeon/ezTerm/actions/workflows/windows-exe.yml/runs?branch=main&status=success&event=push&per_page=1' > /tmp/ezterm-runs.json
-          RUN_ID=$(jq -er '.workflow_runs[0].id' /tmp/ezterm-runs.json)
-          SOURCE_SHA=$(jq -er '.workflow_runs[0].head_sha' /tmp/ezterm-runs.json)
+          RUN_ID=44041641657
+          gh run watch "$RUN_ID" --repo kojaeeon/ezTerm --exit-status --interval 30
+          gh api "repos/kojaeeon/ezTerm/actions/runs/$RUN_ID" > /tmp/ezterm-run.json
+          SOURCE_SHA=$(jq -er '.head_sha' /tmp/ezterm-run.json)
+          test "$SOURCE_SHA" = '48d0d31ca78ee2eb326c6d3d859a0a9c7ce0d831'
           gh api "repos/kojaeeon/ezTerm/actions/runs/$RUN_ID/artifacts" > /tmp/ezterm-artifacts.json
           ARTIFACT_ID=$(jq -er '[.artifacts[] | select(.name == "ezTerm-windows-x64-exe" and .expired == false)][0].id' /tmp/ezterm-artifacts.json)
           DIGEST=$(jq -er '[.artifacts[] | select(.name == "ezTerm-windows-x64-exe" and .expired == false)][0].digest' /tmp/ezterm-artifacts.json)
