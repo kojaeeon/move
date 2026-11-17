@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""UI 폴더 + JAR 내부 파일 → SFTP (이전 파일명 유지).
+"""UI 폴더 + 압축 해제된 Java 폴더 → SFTP (이전 파일명 유지).
 
 설치: python -m pip install paramiko
 실행: python ftp_sync.py
 HOST/PORT/USER 및 경로를 설정하고 DRY_RUN=True로 확인 후 False로 변경.
 수정일시(초)가 다르거나 없는 파일만 복사. 원격 파일 삭제 안 함.
-JAR 대상은 압축파일이 아니라 서버에서 이미 풀려 있는 폴더 경로.
+Java 원본은 로컬 압축 해제 폴더이며 대상은 서버에서 이미 풀려 있는 폴더 경로.
 """
 import os
 import stat
-import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from getpass import getpass
 from pathlib import Path, PurePosixPath
 
@@ -23,13 +22,11 @@ DRY_RUN = True
 UI_ENABLED = JAVA_ENABLED = True
 UI_SOURCE = Path(r"C:\Work1\SCDBS\workspace\50198-kais-ui\target\kais-sys-ui\kaml\cdd")
 UI_TARGET = "/deployments/kais-web.war/ui/kaml/cdd"
-JAVA_JAR = Path(r"C:\Work1\SCDBS\workspace\51006-kais-cdd-app\target\kais-cdd-app.jar")
+JAVA_SOURCE = Path(r"C:\Work1\SCDBS\workspace\51006-kais-cdd-app\target\kais-cdd-app")  # 압축 해제된 폴더로 수정
 JAVA_TARGET = "/deployments/kais-web.war/WEB-INF/lib/kais-cdd-app-1.0.0-SNAPSHOT.jar"
-JAR_TIMEZONE = timezone(timedelta(hours=9))
 IGNORE_DIRS = {".git", ".idea", ".settings", "target", "node_modules", "__pycache__"}
 IGNORE_SUFFIXES = {".bak", ".tmp", ".swp", ".pyc"}
 IGNORE_FILES = {".DS_Store", "Thumbs.db"}
-JAR_EXCLUDE_PREFIXES = ()
 KNOWN_HOSTS = Path.home() / ".ssh" / "known_hosts"
 
 
@@ -37,7 +34,7 @@ def sources(stats):
     if UI_ENABLED:
         if not UI_SOURCE.is_dir():
             raise FileNotFoundError(UI_SOURCE)
-        for folder, dirs, files in os.walk(UI_SOURCE):
+        for folder, dirs, files in os.walk(UI_SOURCE, onerror=lambda exc: _walk_error(exc, stats)):
             dirs[:] = sorted(d for d in dirs if d not in IGNORE_DIRS)
             for name in sorted(files):
                 p = Path(folder) / name
@@ -50,17 +47,27 @@ def sources(stats):
                         continue
                     yield UI_TARGET, p.relative_to(UI_SOURCE).as_posix(), stamp, lambda p=p: p.open("rb")
     if JAVA_ENABLED:
-        with zipfile.ZipFile(JAVA_JAR) as jar:
-            for entry in jar.infolist():
-                if entry.is_dir():
+        if not JAVA_SOURCE.is_dir():
+            raise NotADirectoryError(f"Java 압축 해제 폴더를 확인하세요: {JAVA_SOURCE}")
+        for folder, dirs, files in os.walk(JAVA_SOURCE, onerror=lambda exc: _walk_error(exc, stats)):
+            dirs[:] = sorted(d for d in dirs if d not in IGNORE_DIRS)
+            for name in sorted(files):
+                p = Path(folder) / name
+                if name in IGNORE_FILES or p.suffix.lower() in IGNORE_SUFFIXES:
                     continue
-                name, rel = entry.filename, PurePosixPath(entry.filename)
-                if rel.is_absolute() or ".." in rel.parts or "\\" in name or ":" in name:
-                    raise ValueError(f"잘못된 JAR 경로: {name}")
-                if name.startswith(JAR_EXCLUDE_PREFIXES):
+                try:
+                    rel = p.relative_to(JAVA_SOURCE).as_posix()
+                    stamp = int(p.stat().st_mtime)
+                except OSError as exc:
+                    stats["failed"] += 1
+                    print(f"[SKIP ERROR] {p} | {exc}")
                     continue
-                stamp = int(datetime(*entry.date_time, tzinfo=JAR_TIMEZONE).timestamp())
-                yield JAVA_TARGET, name, stamp, lambda e=entry: jar.open(e)
+                yield JAVA_TARGET, rel, stamp, lambda p=p: p.open("rb")
+
+
+def _walk_error(exc, stats):
+    stats["failed"] += 1
+    print(f"[SKIP ERROR] 폴더 탐색 | {exc}")
 
 
 class Sync:
