@@ -1,0 +1,52 @@
+name: Package JDK25 and JDT LS offline
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/package-jdtls-offline.yml'
+      - 'scripts/build_jdtls_offline.py'
+permissions:
+  contents: write
+concurrency:
+  group: package-jdtls-offline
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts
+            jdtls-offline
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Download, verify, build launcher, test LSP and package
+        run: python scripts/build_jdtls_offline.py
+      - name: Commit split ZIP and instructions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add jdtls-offline
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add tested JDK25 and JDT LS 1.63.0 Windows x64 offline ZIP'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - name: Publish complete ZIP
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='jdtls-offline-1.63.0-jdk25.0.5'
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target main --title 'JDK 25 + JDT LS 1.63.0 Windows x64 offline' --notes-file jdtls-offline/README.md
+          fi
+          gh release upload "$tag" jdk25-jdtls-1.63.0-windows-x64.zip jdtls-offline/SHA256SUMS.txt --clobber
