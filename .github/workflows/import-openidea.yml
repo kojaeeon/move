@@ -24,19 +24,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p openidea
-          curl --fail --location --retry 3 'https://github.com/l0ng-ai/openidea/releases/download/v0.1.46/OpenIDEA_0.1.46_windows_x64_portable.zip' -o 'openidea/OpenIDEA_0.1.46_windows_x64_portable.zip'
-          echo '8f712f92c527451ff8cb9f59b527b9cde1aba2dc00aa7e84462007857bbaf99d  openidea/OpenIDEA_0.1.46_windows_x64_portable.zip' | sha256sum --check
-          unzip -t 'openidea/OpenIDEA_0.1.46_windows_x64_portable.zip'
-          sha256sum 'openidea/OpenIDEA_0.1.46_windows_x64_portable.zip' > openidea/SHA256SUMS
+          curl --fail --location --retry 3 'https://github.com/l0ng-ai/openidea/releases/download/v0.1.48/OpenIDEA_0.1.48_windows_x64_portable.zip' -o 'openidea/OpenIDEA_0.1.48_windows_x64_portable.zip'
+          echo '69fa2e1ed4e807a4a7fdbd5551679e3bb23abee0ea283cd73936e46ee36d22dd  openidea/OpenIDEA_0.1.48_windows_x64_portable.zip' | sha256sum --check
+          unzip -t 'openidea/OpenIDEA_0.1.48_windows_x64_portable.zip'
+          sha256sum 'openidea/OpenIDEA_0.1.48_windows_x64_portable.zip' > openidea/SHA256SUMS
           cat > openidea/README.md <<'EOF'
-          # OpenIDEA v0.1.46 Windows x64 portable
+          # OpenIDEA v0.1.48 Windows x64 portable
 
           공식 Windows x64 포터블 ZIP입니다. 압축을 풀고 실행 파일을 실행하세요.
 
-          원본: https://github.com/l0ng-ai/openidea/releases/tag/v0.1.46
-          파일: OpenIDEA_0.1.46_windows_x64_portable.zip
-          크기: 84521104 bytes (약 84.5 MB / 80.6 MiB)
-          SHA256: 8f712f92c527451ff8cb9f59b527b9cde1aba2dc00aa7e84462007857bbaf99d
+          원본: https://github.com/l0ng-ai/openidea/releases/tag/v0.1.48
+          파일: OpenIDEA_0.1.48_windows_x64_portable.zip
+          크기: 81179932 bytes (약 81.2 MB / 77.4 MiB)
+          SHA256: 69fa2e1ed4e807a4a7fdbd5551679e3bb23abee0ea283cd73936e46ee36d22dd
           EOF
       - name: Commit portable
         shell: bash
@@ -46,6 +46,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add openidea
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Add OpenIDEA v0.1.46 Windows x64 portable'
+          git commit -m 'Add OpenIDEA v0.1.48 Windows x64 portable'
           git pull --rebase origin main
           git push origin HEAD:main
