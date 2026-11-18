@@ -1,0 +1,60 @@
+name: Build Hotkeys Windows portable
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'hotkeys/**'
+      - '.github/workflows/build-hotkeys.yml'
+permissions:
+  contents: write
+concurrency:
+  group: build-hotkeys
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      RUSTFLAGS: '-C target-feature=+crt-static'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Test and build Windows x64
+        working-directory: hotkeys
+        shell: pwsh
+        run: |
+          cargo test --locked --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --locked --release --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package and verify portable ZIP
+        shell: pwsh
+        run: |
+          $stage = New-Item -ItemType Directory (Join-Path $env:RUNNER_TEMP 'hotkeys-stage')
+          $verify = New-Item -ItemType Directory (Join-Path $env:RUNNER_TEMP 'hotkeys-verify')
+          Copy-Item 'hotkeys/target/x86_64-pc-windows-msvc/release/hotkeys.exe' $stage
+          Copy-Item 'hotkeys/hotkeys.toml', 'hotkeys/README.md' $stage
+          New-Item -ItemType Directory -Force 'portable/hotkeys' | Out-Null
+          $zip = 'portable/hotkeys/hotkeys-windows-x64-portable.zip'
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
+          Expand-Archive -LiteralPath $zip -DestinationPath $verify
+          foreach ($name in 'hotkeys.exe', 'hotkeys.toml', 'README.md') {
+            $before = (Get-FileHash (Join-Path $stage $name)).Hash
+            $after = (Get-FileHash (Join-Path $verify $name)).Hash
+            if ($before -ne $after) { throw "ZIP verification failed for $name" }
+          }
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          "$hash *hotkeys-windows-x64-portable.zip" | Set-Content -Encoding ascii 'portable/hotkeys/SHA256SUMS'
+      - name: Commit portable ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add portable/hotkeys
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Add Hotkeys Windows x64 portable ZIP'
+          git pull --rebase origin main
+          git push origin HEAD:main

@@ -1,0 +1,11 @@
+[[hotkeys]]
+trigger = "Ctrl+Alt+1"
+text = "SELECT * FROM "
+
+[[hotkeys]]
+trigger = "Ctrl+Alt+2"
+send = "F5"
+
+[[hotkeys]]
+trigger = "Ctrl+Alt+3"
+send = "Ctrl+Shift+F"
