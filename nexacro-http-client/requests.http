@@ -1,0 +1,36 @@
+@baseUrl = http://127.0.0.1:8080
+# 예시 경로. context path와 컨트롤러 매핑에 맞춰 변경하세요.
+@controllerPath = /kaml/example/regular-check.do
+
+### 넥사크로 14 정기점검 조회 (변수와 Dataset)
+POST {{baseUrl}}{{controllerPath}}
+Content-Type: text/xml; charset=UTF-8
+
+<?xml version="1.0" encoding="UTF-8"?>
+<Root xmlns="http://www.nexacroplatform.com/platform/dataset" ver="4000">
+  <Parameters>
+    <Parameter id="checkType" type="string">REGULAR</Parameter>
+  </Parameters>
+  <Dataset id="dsSearch">
+    <ColumnInfo>
+      <Column id="cifNo" type="string" size="20"/>
+    </ColumnInfo>
+    <Rows>
+      <Row>
+        <Col id="cifNo">0000123456</Col>
+      </Row>
+    </Rows>
+  </Dataset>
+</Root>
+
+### 넥사크로 14 조회 (arguments만 받는 컨트롤러)
+# arguments만 받는 별도 매핑이 있다면 이 요청의 URL을 바꾸세요.
+POST {{baseUrl}}{{controllerPath}}
+Content-Type: text/xml; charset=UTF-8
+
+<?xml version="1.0" encoding="UTF-8"?>
+<Root xmlns="http://www.nexacroplatform.com/platform/dataset" ver="4000">
+  <Parameters>
+    <Parameter id="checkType" type="string">REGULAR</Parameter>
+  </Parameters>
+</Root>
