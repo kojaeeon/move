@@ -1,0 +1,36 @@
+name: Import Inspector DLL tracing portable
+on:
+  push:
+    paths: ['.github/workflows/import-inspector-dll.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: portable/inspector
+      - name: Download verified Windows build
+        shell: bash
+        run: |
+          set -euo pipefail
+          task_tmp="$(mktemp -d)"
+          base="https://github.com/kojaeeon/inspector/releases/download/dll-dc013f5c99f5938ae1fb1c3b2939e88ad51d8064"
+          curl -fL --retry 3 "$base/inspector-windows-x64-portable.zip" -o "$task_tmp/inspector-windows-x64-portable.zip"
+          curl -fL --retry 3 "$base/SHA256SUMS.txt" -o "$task_tmp/SHA256SUMS.txt"
+          (cd "$task_tmp" && sha256sum -c SHA256SUMS.txt)
+          unzip -t "$task_tmp/inspector-windows-x64-portable.zip"
+          unzip -p "$task_tmp/inspector-windows-x64-portable.zip" SOURCE.txt | grep -F "dc013f5c99f5938ae1fb1c3b2939e88ad51d8064"
+          mkdir -p portable/inspector
+          cp "$task_tmp/inspector-windows-x64-portable.zip" portable/inspector/
+          cp "$task_tmp/SHA256SUMS.txt" portable/inspector/
+          unzip -p "$task_tmp/inspector-windows-x64-portable.zip" README.md > portable/inspector/README.md
+          git add portable/inspector
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --cached --quiet; then
+            git commit -m "Update Inspector portable with tested DLL tracing (dc013f5)"
+            git push origin HEAD:main
+          fi
