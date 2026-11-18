@@ -1,5 +1,5 @@
 name: Import ezTerm portable
-# Refresh requested for SFTP absolute-path copy build 48d0d31ca78ee2eb326c6d3d859a0a9c7ce0d831.
+# Import the Windows build with ezedit in SSH, CMD and PowerShell tabs.
 
 on:
   workflow_dispatch:
@@ -22,31 +22,35 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Download latest successful main build
+      - name: Download and verify Windows portable
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          RUN_ID=44041641657
+          RUN_ID=44317284700
           gh run watch "$RUN_ID" --repo kojaeeon/ezTerm --exit-status --interval 30
           gh api "repos/kojaeeon/ezTerm/actions/runs/$RUN_ID" > /tmp/ezterm-run.json
           SOURCE_SHA=$(jq -er '.head_sha' /tmp/ezterm-run.json)
-          test "$SOURCE_SHA" = '48d0d31ca78ee2eb326c6d3d859a0a9c7ce0d831'
+          test "$SOURCE_SHA" = '06063e42818f4b2267fe61534a055a566f1a2bc2'
           gh api "repos/kojaeeon/ezTerm/actions/runs/$RUN_ID/artifacts" > /tmp/ezterm-artifacts.json
           ARTIFACT_ID=$(jq -er '[.artifacts[] | select(.name == "ezTerm-windows-x64-exe" and .expired == false)][0].id' /tmp/ezterm-artifacts.json)
           DIGEST=$(jq -er '[.artifacts[] | select(.name == "ezTerm-windows-x64-exe" and .expired == false)][0].digest' /tmp/ezterm-artifacts.json)
           gh api "repos/kojaeeon/ezTerm/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/ezterm-portable.zip
           echo "${DIGEST#sha256:}  /tmp/ezterm-portable.zip" | sha256sum --check
-          unzip -t /tmp/ezterm-portable.zip
-          unzip -Z1 /tmp/ezterm-portable.zip | grep -Fx 'ezterm.exe'
+          unzip -tq /tmp/ezterm-portable.zip
+          unzip -Z1 /tmp/ezterm-portable.zip > /tmp/ezterm-portable-files.txt
+          grep -Fx 'ezterm.exe' /tmp/ezterm-portable-files.txt
+          grep -Fx 'helix/hx.exe' /tmp/ezterm-portable-files.txt
+          grep -E '^helix/runtime/queries/[^/]+/highlights\.scm$' /tmp/ezterm-portable-files.txt >/dev/null
           mkdir -p ezterm
           cp /tmp/ezterm-portable.zip ezterm/ezTerm-portable-windows-x64.zip
           sha256sum ezterm/ezTerm-portable-windows-x64.zip > ezterm/SHA256SUMS
           cat > ezterm/README.md <<EOF
           # ezTerm portable (Windows x64)
 
-          Download and extract ezTerm-portable-windows-x64.zip, then run ezterm.exe.
+          Extract ezTerm-portable-windows-x64.zip, then run ezterm.exe with the helix folder beside it.
+          Press Ctrl+Shift+E in an SSH, CMD or PowerShell tab to open the ezedit command prompt.
           Microsoft Edge WebView2 Runtime must be available on the PC.
           This EXE-only build does not include the optional VcXsrv distribution.
 
