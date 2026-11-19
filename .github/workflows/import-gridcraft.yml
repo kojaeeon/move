@@ -1,52 +1,93 @@
-name: Import GridCraft portable
+name: Build GridCraft Markdown portable
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - '.github/workflows/import-gridcraft.yml'
+    branches: [build/gridcraft-markdown-portable]
+    paths: ['.github/workflows/import-gridcraft.yml']
 permissions:
   contents: write
-concurrency:
-  group: import-gridcraft
-  cancel-in-progress: false
 jobs:
-  import:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      GRIDCRAFT_BUILD_SHA: 6de03f055906e00897b17fd734789bfb22e279e6
+      GRIDCRAFT_BUILD_DATE: '2026-11-19'
+      GRIDCRAFT_REQUIRE_WINRES: '1'
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C target-feature=+crt-static'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: '2'
     steps:
       - uses: actions/checkout@v4
-      - name: Download and verify official portable
-        shell: bash
+      - uses: actions/checkout@v4
+        with:
+          repository: kojaeeon/gridcraft
+          ref: 6de03f055906e00897b17fd734789bfb22e279e6
+          path: gridcraft-source
+          persist-credentials: false
+      - name: Build and verify portable executables
+        shell: pwsh
+        working-directory: gridcraft-source
         run: |
-          set -euo pipefail
-          mkdir -p gridcraft
-          curl --fail --location --retry 3 'https://github.com/storytold/gridcraft/releases/download/v0.19.1/gridcraft-0.19.1-windows-x64-portable.zip' -o 'gridcraft/gridcraft-0.19.1-windows-x64-portable.zip'
-          echo '0b4bf8535f4904fac654326a360ff6d74ea6f4d184a8257c106388fafe74c9ac  gridcraft/gridcraft-0.19.1-windows-x64-portable.zip' | sha256sum --check
-          unzip -t 'gridcraft/gridcraft-0.19.1-windows-x64-portable.zip'
-          unzip -Z1 'gridcraft/gridcraft-0.19.1-windows-x64-portable.zip' > /tmp/gridcraft-files.txt
-          grep -Ei '(^|/)gridcraft\.exe$' /tmp/gridcraft-files.txt
-          sha256sum 'gridcraft/gridcraft-0.19.1-windows-x64-portable.zip' > gridcraft/SHA256SUMS
-          cat > gridcraft/README.md <<'EOF'
-          # GridCraft v0.19.1 Windows x64 portable
-
-          공식 릴리즈의 설치 없는 Windows x64 포터블입니다.
-          ZIP 전체를 압축 해제한 뒤 gridcraft.exe를 실행하세요.
-          함께 포함된 파일과 폴더도 그대로 유지하세요.
-
-          원본: https://github.com/storytold/gridcraft/releases/tag/v0.19.1
-          파일: gridcraft-0.19.1-windows-x64-portable.zip
-          크기: 52149109 bytes
-          SHA256: 0b4bf8535f4904fac654326a360ff6d74ea6f4d184a8257c106388fafe74c9ac
-          EOF
-      - name: Commit portable
-        shell: bash
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          rustup update stable
+          cargo +stable build --release --locked --target x86_64-pc-windows-msvc -p gridcraft -p gridcraft-cli
+          $build = 'target/x86_64-pc-windows-msvc/release'
+          & "$build/gridcraft-cli.exe" --version
+          $stage = Join-Path $env:RUNNER_TEMP 'GridCraft'
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          foreach ($entry in @(@('gridcraft.exe', 2), @('gridcraft-cli.exe', 3))) {
+            $path = Join-Path $build $entry[0]
+            $bytes = [IO.File]::ReadAllBytes((Resolve-Path $path))
+            $pe = [BitConverter]::ToInt32($bytes, 0x3C)
+            if ([BitConverter]::ToUInt32($bytes, $pe) -ne 0x4550 -or [BitConverter]::ToUInt16($bytes, $pe + 4) -ne 0x8664 -or [BitConverter]::ToUInt16($bytes, $pe + 0x5C) -ne $entry[1]) {
+              throw "Unexpected Windows executable header: $path"
+            }
+            Copy-Item $path $stage
+          }
+          foreach ($file in 'README.md','LICENSE-MIT','LICENSE-APACHE','NOTICE','ATTRIBUTION.md') {
+            if (Test-Path $file) { Copy-Item $file $stage }
+          }
+          $zip = Join-Path $env:RUNNER_TEMP 'gridcraft-0.19.1-ods-markdown-windows-x64-portable.zip'
+          Compress-Archive -Path "$stage/*" -DestinationPath $zip
+          Expand-Archive -LiteralPath $zip -DestinationPath "$stage-verify"
+          & "$stage-verify/gridcraft-cli.exe" --version
+      - name: Publish verified archive to move
+        shell: pwsh
         run: |
-          set -euo pipefail
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          Remove-Item -Recurse -Force gridcraft-source
+          git fetch origin main
+          git switch -C publish-gridcraft FETCH_HEAD
+          $target = 'portable/gridcraft'
+          $name = 'gridcraft-0.19.1-ods-markdown-windows-x64-portable.zip'
+          $zip = Join-Path $env:RUNNER_TEMP $name
+          if ((Get-Item $zip).Length -ge 100MB) { throw 'Portable ZIP exceeds the GitHub file limit.' }
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          Copy-Item $zip "$target/$name"
+          $digest = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path "$target/$name.sha256" -Value "$digest  $name" -Encoding utf8
+          git rm --ignore-unmatch -- 'portable/gridcraft/gridcraft-0.19.1-ods-fd39f2c-*'
+          $section = @'
+          ## GridCraft 0.19.1 — Windows x64
+
+          새 문서는 기본적으로 ODS로 저장됩니다. 셀 영역을 선택하고 우클릭한 뒤 **Markdown 표로 복사**를 선택하면 첫 표시 행을 헤더로 사용하는 표가 클립보드에 복사됩니다.
+
+          - [포터블 ZIP 다운로드](portable/gridcraft/gridcraft-0.19.1-ods-markdown-windows-x64-portable.zip?raw=1)
+          - [SHA-256](portable/gridcraft/gridcraft-0.19.1-ods-markdown-windows-x64-portable.zip.sha256)
+          - [소스 커밋](https://github.com/kojaeeon/gridcraft/commit/6de03f055906e00897b17fd734789bfb22e279e6)
+
+          ZIP을 압축 해제한 뒤 `gridcraft.exe`를 실행하세요.
+
+          '@
+          $readme = Get-Content README.md -Raw -Encoding utf8
+          $pattern = '(?ms)^## GridCraft 0\.19\.1[^\r\n]*\r?\n.*?(?=^## |\z)'
+          $updated = [regex]::Replace($readme, $pattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $section + "`n" })
+          if ($updated -eq $readme) { throw 'GridCraft section was not found in README.md.' }
+          Set-Content -Path README.md -Value $updated -NoNewline -Encoding utf8
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gridcraft
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Add GridCraft v0.19.1 Windows x64 portable'
-          git pull --rebase origin main
+          git add README.md $target
+          git commit -m 'Update GridCraft portable with Markdown table copy'
           git push origin HEAD:main
