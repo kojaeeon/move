@@ -17,35 +17,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: openidea
+          sparse-checkout: portable/openidea
           fetch-depth: 1
       - name: Download and verify official portable
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p openidea
-          curl --fail --location --retry 3 'https://github.com/l0ng-ai/openidea/releases/download/v0.1.48/OpenIDEA_0.1.48_windows_x64_portable.zip' -o 'openidea/OpenIDEA_0.1.48_windows_x64_portable.zip'
-          echo '69fa2e1ed4e807a4a7fdbd5551679e3bb23abee0ea283cd73936e46ee36d22dd  openidea/OpenIDEA_0.1.48_windows_x64_portable.zip' | sha256sum --check
-          unzip -t 'openidea/OpenIDEA_0.1.48_windows_x64_portable.zip'
-          sha256sum 'openidea/OpenIDEA_0.1.48_windows_x64_portable.zip' > openidea/SHA256SUMS
-          cat > openidea/README.md <<'EOF'
-          # OpenIDEA v0.1.48 Windows x64 portable
+          destination='portable/openidea'
+          zip='OpenIDEA_0.1.49_windows_x64_portable.zip'
+          digest='d58d749e3ae220744f07db753c64c8b8cb248669127122ee052d789768a118d1'
+          mkdir -p "$destination"
+          curl --fail --location --retry 3 "https://github.com/l0ng-ai/openidea/releases/download/v0.1.49/$zip" -o "$destination/$zip"
+          printf '%s  %s\n' "$digest" "$zip" > "$destination/$zip.sha256"
+          (
+            cd "$destination"
+            sha256sum --check "$zip.sha256"
+            unzip -tq "$zip"
+            unzip -Z1 "$zip" > "$RUNNER_TEMP/openidea-zip-entries.txt"
+            grep -Ei '(^|/)openidea\.exe$' "$RUNNER_TEMP/openidea-zip-entries.txt"
+          )
+          if ! grep -Fxq '## OpenIDEA 0.1.49 — Windows x64' README.md; then
+            cat >> README.md <<'EOF'
 
-          공식 Windows x64 포터블 ZIP입니다. 압축을 풀고 실행 파일을 실행하세요.
+          ## OpenIDEA 0.1.49 — Windows x64
 
-          원본: https://github.com/l0ng-ai/openidea/releases/tag/v0.1.48
-          파일: OpenIDEA_0.1.48_windows_x64_portable.zip
-          크기: 81179932 bytes (약 81.2 MB / 77.4 MiB)
-          SHA256: 69fa2e1ed4e807a4a7fdbd5551679e3bb23abee0ea283cd73936e46ee36d22dd
+          ZIP을 압축 해제한 뒤 OpenIDEA 실행 파일을 실행하세요.
+
+          - [포터블 ZIP 다운로드](portable/openidea/OpenIDEA_0.1.49_windows_x64_portable.zip?raw=1)
+          - [SHA-256](portable/openidea/OpenIDEA_0.1.49_windows_x64_portable.zip.sha256)
+          - [공식 릴리스](https://github.com/l0ng-ai/openidea/releases/tag/v0.1.49)
           EOF
+          fi
       - name: Commit portable
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add openidea
+          git add -- portable/openidea README.md
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Add OpenIDEA v0.1.48 Windows x64 portable'
+          git commit -m 'Add OpenIDEA 0.1.49 Windows x64 portable'
           git pull --rebase origin main
           git push origin HEAD:main
