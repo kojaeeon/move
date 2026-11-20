@@ -1,6 +1,6 @@
 # Portable downloads
 
-## Logwatch 0.1.2 — Windows x64
+## Logwatch 0.1.3 — Windows x64
 
 Java·SQL·XML 로그를 실시간으로 보는 터미널 프로그램입니다. ZIP을 압축 해제하고 해당 폴더에서 PowerShell 또는 ezTerm을 열어 실행하세요.
 
@@ -10,9 +10,9 @@ Java·SQL·XML 로그를 실시간으로 보는 터미널 프로그램입니다.
 .\logwatch.exe --dump
 ~~~
 
-- [포터블 ZIP 다운로드](portable/logwatch/logwatch-0.1.2-windows-x64-portable.zip?raw=1)
-- [SHA-256](portable/logwatch/logwatch-0.1.2-windows-x64-portable.zip.sha256)
-- [소스 커밋](https://github.com/kojaeeon/rust_toy/commit/f6dac1a2f00d7f6bf7adc343e67490061f5a01b5)
+- [포터블 ZIP 다운로드](portable/logwatch/logwatch-0.1.3-windows-x64-portable.zip?raw=1)
+- [SHA-256](portable/logwatch/logwatch-0.1.3-windows-x64-portable.zip.sha256)
+- [소스 커밋](https://github.com/kojaeeon/rust_toy/commit/2a3b4636e8d1a1a6279ca4db08efd8404661703a)
 
 ## OpenIDEA 0.1.49 — Windows x64
 
