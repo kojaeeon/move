@@ -1,0 +1,63 @@
+name: Transfer OpenIDEA Java debugger
+on:
+  push:
+    branches: [transfer/openidea-java-debug]
+permissions:
+  contents: write
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Fetch and verify Microsoft Java debugger
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 'https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0' -o "$RUNNER_TEMP/java-debug.json"
+          package_url=$(jq -er '.files.download | select(startswith("https://open-vsx.org/"))' "$RUNNER_TEMP/java-debug.json")
+          curl -fsSL --retry 3 "$package_url" -o "$RUNNER_TEMP/java-debug.vsix"
+          python - <<'PY'
+          import io
+          from pathlib import Path
+          import os
+          import re
+          import zipfile
+
+          out = Path("openidea/java-debug")
+          out.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(Path(os.environ["RUNNER_TEMP"]) / "java-debug.vsix") as package:
+              member, = [
+                  name for name in package.namelist()
+                  if re.fullmatch(r"extension/server/com\.microsoft\.java\.debug\.plugin-.+\.jar", name)
+              ]
+              jar = package.read(member)
+          with zipfile.ZipFile(io.BytesIO(jar)) as bundle:
+              assert bundle.testzip() is None
+              manifest = bundle.read("META-INF/MANIFEST.MF").decode()
+              assert "Bundle-SymbolicName: com.microsoft.java.debug.plugin" in manifest
+              print(next(line for line in manifest.splitlines() if line.startswith("Bundle-Version:")))
+              licenses = [name for name in bundle.namelist() if name.rsplit("/", 1)[-1].lower() in {"license.txt", "license", "license.md"}]
+              if licenses:
+                  (out / "LICENSE.txt").write_bytes(bundle.read(licenses[0]))
+          (out / "com.microsoft.java.debug.plugin.jar").write_bytes(jar)
+          PY
+          cd openidea/java-debug
+          if [[ ! -s LICENSE.txt ]]; then
+            curl -fsSL --retry 3 'https://raw.githubusercontent.com/microsoft/java-debug/main/LICENSE.txt' -o LICENSE.txt
+          fi
+          cat > README.md <<'EOF'
+          # Microsoft Java Debugger
+          
+          [Open VSX Debugger for Java v0.60.0](https://open-vsx.org/extension/vscjava/vscode-java-debug/0.60.0) 배포본에서 추출한 JDT LS 번들입니다. [Microsoft java-debug 소스 코드](https://github.com/microsoft/java-debug)를 확인할 수 있습니다.
+          EOF
+          sha256sum com.microsoft.java.debug.plugin.jar
+      - name: Publish bundle
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add openidea/java-debug/
+          git commit -m 'Add Java debugger bundle for OpenIDEA'
+          git pull --rebase origin main
+          git push origin HEAD:main
