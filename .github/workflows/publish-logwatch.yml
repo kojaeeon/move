@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: kojaeeon/rust_toy
-          ref: 315a46e18d152b9ea5004531ed79ca0d509d334a
+          ref: f6dac1a2f00d7f6bf7adc343e67490061f5a01b5
           path: rust-toy
           persist-credentials: false
       - name: Test and build Windows x64
@@ -42,12 +42,12 @@ jobs:
           Copy-Item target/x86_64-pc-windows-msvc/release/logwatch.exe,logwatch.toml,README.md $stage
           Copy-Item logs/application.log "$stage/logs"
           Copy-Item scripts/replay.ps1 "$stage/scripts"
-          $zip = Join-Path $env:RUNNER_TEMP 'logwatch-0.1.1-windows-x64-portable.zip'
+          $zip = Join-Path $env:RUNNER_TEMP 'logwatch-0.1.2-windows-x64-portable.zip'
           Compress-Archive -Path "$stage/*" -DestinationPath $zip
           Expand-Archive -LiteralPath $zip -DestinationPath $verify
           Push-Location $verify
           try {
-            if ((./logwatch.exe --version) -ne 'logwatch 0.1.1') { throw 'Unexpected logwatch version' }
+            if ((./logwatch.exe --version) -ne 'logwatch 0.1.2') { throw 'Unexpected logwatch version' }
             $dump = ./logwatch.exe --dump --config ./logwatch.toml | Out-String
             if (-not $dump.Contains('25 events')) { throw 'Expected 25 sample events' }
             @'
@@ -60,6 +60,16 @@ jobs:
             if (-not ($dump.Contains('INFO  SQL') -and $dump.Contains('final_marker'))) {
               throw 'The JDBC CTE was not classified as SQL or lost its final line'
             }
+            @'
+          2026-11-20 11:09:15,987 INFO [jdbc.sqlonly.sqlOccurred(741)] SQL::INSERT INTO AUDIT_LOG (MSG_TEXT)
+          VALUES ('<Dataset id="result">
+          <Row>OK</Row>
+          </Dataset>');
+          '@ | Set-Content -Encoding utf8 xml-in-sql.log
+            $dump = ./logwatch.exe ./xml-in-sql.log --dump | Out-String
+            if (-not ($dump.Contains('<Row>OK</Row>') -and $dump.Contains('</Dataset>')) -or $dump.Contains('XML incomplete/invalid')) {
+              throw 'The inline XML was split from the SQL payload'
+            }
           } finally {
             Pop-Location
           }
@@ -69,23 +79,23 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           git fetch --no-tags origin main
           git checkout --detach FETCH_HEAD
-          if ((git rev-parse HEAD:portable/logwatch) -ne 'e3d37d095056d5acd1161fbca6bde388b393fff6') {
+          if ((git rev-parse HEAD:portable/logwatch) -ne '212060120448cc19827a69a2e93f9e061853b55e') {
             throw 'Logwatch package changed while the build was running'
           }
           $destination = 'portable/logwatch'
-          $oldZip = 'logwatch-0.1.0-windows-x64-portable.zip'
-          $zip = 'logwatch-0.1.1-windows-x64-portable.zip'
+          $oldZip = 'logwatch-0.1.1-windows-x64-portable.zip'
+          $zip = 'logwatch-0.1.2-windows-x64-portable.zip'
           git rm -- "$destination/$oldZip" "$destination/$oldZip.sha256"
           New-Item -ItemType Directory -Path $destination -Force | Out-Null
           Copy-Item (Join-Path $env:RUNNER_TEMP $zip) $destination
           $checksum = (Get-FileHash -Algorithm SHA256 "$destination/$zip").Hash.ToLowerInvariant()
           Set-Content -Encoding ascii "$destination/$zip.sha256" "$checksum  $zip"
           $readme = Get-Content -Raw -Encoding utf8 README.md
-          $readme = $readme.Replace('Logwatch 0.1.0','Logwatch 0.1.1').Replace($oldZip,$zip)
-          $readme = $readme.Replace('b7ddb30ccc6f2c5aebac2b92169d42f6ceea536e','315a46e18d152b9ea5004531ed79ca0d509d334a')
+          $readme = $readme.Replace('Logwatch 0.1.1','Logwatch 0.1.2').Replace($oldZip,$zip)
+          $readme = $readme.Replace('315a46e18d152b9ea5004531ed79ca0d509d334a','f6dac1a2f00d7f6bf7adc343e67490061f5a01b5')
           Set-Content -NoNewline -Encoding utf8 README.md $readme
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- README.md "$destination"
-          git commit -m 'Update Logwatch Windows x64 portable to 0.1.1'
+          git commit -m 'Update Logwatch Windows x64 portable to 0.1.2'
           git push origin HEAD:main
