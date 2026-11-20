@@ -21,3 +21,11 @@ ZIP을 압축 해제한 뒤 OpenIDEA 실행 파일을 실행하세요.
 - [포터블 ZIP 다운로드](portable/openidea/OpenIDEA_0.1.49_windows_x64_portable.zip?raw=1)
 - [SHA-256](portable/openidea/OpenIDEA_0.1.49_windows_x64_portable.zip.sha256)
 - [공식 릴리스](https://github.com/l0ng-ai/openidea/releases/tag/v0.1.49)
+
+## Logwatch 0.1.4 — Linux x64
+
+Linux x86-64용 정적 실행 파일입니다. 압축을 푼 폴더에서
+`./logwatch /path/to/application.log`로 실행하세요.
+
+- [포터블 TAR.GZ 다운로드](portable/logwatch/logwatch-0.1.4-linux-x64-portable.tar.gz?raw=1)
+- [SHA-256](portable/logwatch/logwatch-0.1.4-linux-x64-portable.tar.gz.sha256)
