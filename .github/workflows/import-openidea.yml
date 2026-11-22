@@ -24,10 +24,10 @@ jobs:
         run: |
           set -euo pipefail
           destination='portable/openidea'
-          zip='OpenIDEA_0.1.49_windows_x64_portable.zip'
-          digest='d58d749e3ae220744f07db753c64c8b8cb248669127122ee052d789768a118d1'
+          zip='OpenIDEA_0.1.50_windows_x64_portable.zip'
+          digest='9f38a0b5aacd302299c5391802afb67697d11925daa806237823587c9ec80d7e'
           mkdir -p "$destination"
-          curl --fail --location --retry 3 "https://github.com/l0ng-ai/openidea/releases/download/v0.1.49/$zip" -o "$destination/$zip"
+          curl --fail --location --retry 3 "https://github.com/l0ng-ai/openidea/releases/download/v0.1.50/$zip" -o "$destination/$zip"
           printf '%s  %s\n' "$digest" "$zip" > "$destination/$zip.sha256"
           (
             cd "$destination"
@@ -36,16 +36,19 @@ jobs:
             unzip -Z1 "$zip" > "$RUNNER_TEMP/openidea-zip-entries.txt"
             grep -Ei '(^|/)openidea\.exe$' "$RUNNER_TEMP/openidea-zip-entries.txt"
           )
-          if ! grep -Fxq '## OpenIDEA 0.1.49 — Windows x64' README.md; then
+          if grep -Fxq '## OpenIDEA 0.1.49 — Windows x64' README.md; then
+            sed -i '/^## OpenIDEA 0\.1\.49 — Windows x64$/,/^## /s/0\.1\.49/0.1.50/g' README.md
+          fi
+          if ! grep -Fxq '## OpenIDEA 0.1.50 — Windows x64' README.md; then
             cat >> README.md <<'EOF'
 
-          ## OpenIDEA 0.1.49 — Windows x64
+          ## OpenIDEA 0.1.50 — Windows x64
 
           ZIP을 압축 해제한 뒤 OpenIDEA 실행 파일을 실행하세요.
 
-          - [포터블 ZIP 다운로드](portable/openidea/OpenIDEA_0.1.49_windows_x64_portable.zip?raw=1)
-          - [SHA-256](portable/openidea/OpenIDEA_0.1.49_windows_x64_portable.zip.sha256)
-          - [공식 릴리스](https://github.com/l0ng-ai/openidea/releases/tag/v0.1.49)
+          - [포터블 ZIP 다운로드](portable/openidea/OpenIDEA_0.1.50_windows_x64_portable.zip?raw=1)
+          - [SHA-256](portable/openidea/OpenIDEA_0.1.50_windows_x64_portable.zip.sha256)
+          - [공식 릴리스](https://github.com/l0ng-ai/openidea/releases/tag/v0.1.50)
           EOF
           fi
       - name: Commit portable
@@ -56,6 +59,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- portable/openidea README.md
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Add OpenIDEA 0.1.49 Windows x64 portable'
+          git commit -m 'Add OpenIDEA 0.1.50 Windows x64 portable'
           git pull --rebase origin main
           git push origin HEAD:main
