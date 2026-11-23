@@ -29,3 +29,4 @@ Linux x86-64용 정적 실행 파일입니다. 압축을 푼 폴더에서
 
 - [포터블 TAR.GZ 다운로드](portable/logwatch/logwatch-0.1.4-linux-x64-portable.tar.gz?raw=1)
 - [SHA-256](portable/logwatch/logwatch-0.1.4-linux-x64-portable.tar.gz.sha256)
+- [소스 커밋](https://github.com/kojaeeon/rust_toy/commit/ee205d7a2847a4b4ff580c5f7cd40e9303003a6e)
