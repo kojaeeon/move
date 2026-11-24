@@ -1,5 +1,8 @@
 name: Import OpenIDEA portable
 on:
+  # 23:00 UTC = 다음 날 오전 08:00 한국 시간
+  schedule:
+    - cron: '0 23 * * *'
   workflow_dispatch:
   push:
     branches: [main]
@@ -9,56 +12,121 @@ permissions:
   contents: write
 concurrency:
   group: import-openidea
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: portable/openidea
           fetch-depth: 1
-      - name: Download and verify official portable
+      - name: Check latest official release and import if needed
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          destination='portable/openidea'
-          zip='OpenIDEA_0.1.50_windows_x64_portable.zip'
-          digest='9f38a0b5aacd302299c5391802afb67697d11925daa806237823587c9ec80d7e'
-          mkdir -p "$destination"
-          curl --fail --location --retry 3 "https://github.com/l0ng-ai/openidea/releases/download/v0.1.50/$zip" -o "$destination/$zip"
-          printf '%s  %s\n' "$digest" "$zip" > "$destination/$zip.sha256"
-          (
-            cd "$destination"
-            sha256sum --check "$zip.sha256"
-            unzip -tq "$zip"
-            unzip -Z1 "$zip" > "$RUNNER_TEMP/openidea-zip-entries.txt"
-            grep -Ei '(^|/)openidea\.exe$' "$RUNNER_TEMP/openidea-zip-entries.txt"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import tempfile
+          import urllib.request
+          import zipfile
+          from pathlib import Path
+
+          upstream = "l0ng-ai/openidea"
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{upstream}/releases/latest",
+              headers={
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
           )
-          if grep -Fxq '## OpenIDEA 0.1.49 — Windows x64' README.md; then
-            sed -i '/^## OpenIDEA 0\.1\.49 — Windows x64$/,/^## /s/0\.1\.49/0.1.50/g' README.md
-          fi
-          if ! grep -Fxq '## OpenIDEA 0.1.50 — Windows x64' README.md; then
-            cat >> README.md <<'EOF'
-
-          ## OpenIDEA 0.1.50 — Windows x64
-
-          ZIP을 압축 해제한 뒤 OpenIDEA 실행 파일을 실행하세요.
-
-          - [포터블 ZIP 다운로드](portable/openidea/OpenIDEA_0.1.50_windows_x64_portable.zip?raw=1)
-          - [SHA-256](portable/openidea/OpenIDEA_0.1.50_windows_x64_portable.zip.sha256)
-          - [공식 릴리스](https://github.com/l0ng-ai/openidea/releases/tag/v0.1.50)
-          EOF
-          fi
-      - name: Commit portable
+          with urllib.request.urlopen(request, timeout=60) as response:
+              release = json.load(response)
+          tag = release["tag_name"]
+          if release.get("draft") or release.get("prerelease"):
+              raise SystemExit("Expected a published stable release")
+          if not re.fullmatch(r"v?\d+\.\d+\.\d+", tag):
+              raise SystemExit(f"Unsupported release tag: {tag!r}")
+          version = tag.removeprefix("v")
+          name = f"OpenIDEA_{version}_windows_x64_portable.zip"
+          assets = [a for a in release["assets"] if a["name"] == name]
+          if len(assets) != 1:
+              raise SystemExit(f"Official Windows x64 portable not available: {name}")
+          asset = assets[0]
+          digest = asset.get("digest") or ""
+          if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+              raise SystemExit("Official SHA-256 digest unavailable; preserving existing files")
+          expected = digest.split(":", 1)[1]
+          # GitHub regular Git files must stay below 100 MiB.
+          limit = 100 * 1024 * 1024
+          if not 0 < asset["size"] < limit:
+              raise SystemExit("Portable exceeds Git file size limit; manual review required")
+          destination = Path("portable/openidea")
+          destination.mkdir(parents=True, exist_ok=True)
+          target = destination / name
+          current = hashlib.sha256(target.read_bytes()).hexdigest() if target.exists() else None
+          if current != expected:
+              url = f"https://github.com/{upstream}/releases/download/{tag}/{name}"
+              # Download outside the repository; replace only after verification.
+              with tempfile.TemporaryDirectory() as temp:
+                  downloaded = Path(temp) / name
+                  sha = hashlib.sha256()
+                  size = 0
+                  with urllib.request.urlopen(url, timeout=120) as source, downloaded.open("wb") as output:
+                      while chunk := source.read(1024 * 1024):
+                          size += len(chunk)
+                          if size >= limit:
+                              raise SystemExit("Download exceeds Git file size limit")
+                          output.write(chunk)
+                          sha.update(chunk)
+                  if size != asset["size"] or sha.hexdigest() != expected:
+                      raise SystemExit("Official portable checksum or size mismatch")
+                  with zipfile.ZipFile(downloaded) as archive:
+                      if archive.testzip() is not None:
+                          raise SystemExit("Corrupt ZIP")
+                      if not any(Path(p).name.lower() == "openidea.exe" for p in archive.namelist()):
+                          raise SystemExit("OpenIDEA executable missing")
+                  target.write_bytes(downloaded.read_bytes())
+              print(f"Imported {tag}")
+          else:
+              print(f"{tag} already imported; download skipped")
+          target.with_suffix(".zip.sha256").write_text(f"{expected}  {name}\n", encoding="utf-8")
+          readme = Path("README.md")
+          text = readme.read_text(encoding="utf-8")
+          section = (
+              f"## OpenIDEA {version} — Windows x64\n\n"
+              "ZIP을 압축 해제한 뒤 OpenIDEA 실행 파일을 실행하세요.\n\n"
+              f"- [포터블 ZIP 다운로드](portable/openidea/{name}?raw=1)\n"
+              f"- [SHA-256](portable/openidea/{name}.sha256)\n"
+              f"- [공식 릴리스](https://github.com/{upstream}/releases/tag/{tag})\n"
+          )
+          pattern = r"(?ms)^## OpenIDEA [^\n]*— Windows x64\n.*?(?=^## |\Z)"
+          if re.search(pattern, text):
+              text = re.sub(pattern, lambda match: section + "\n", text, count=1)
+          else:
+              text = text.rstrip() + "\n\n" + section
+          readme.write_text(text, encoding="utf-8")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
+              output.write(f"OPENIDEA_VERSION={version}\n")
+          PY
+      - name: Commit only changed files
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- portable/openidea README.md
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Add OpenIDEA 0.1.50 Windows x64 portable'
+          if git diff --cached --quiet; then
+            echo "Already up to date; no commit needed."
+            exit 0
+          fi
+          git commit -m "Import OpenIDEA ${OPENIDEA_VERSION} Windows x64 portable"
           git pull --rebase origin main
           git push origin HEAD:main
