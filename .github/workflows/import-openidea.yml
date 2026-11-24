@@ -98,6 +98,17 @@ jobs:
           else:
               print(f"{tag} already imported; download skipped")
           target.with_suffix(".zip.sha256").write_text(f"{expected}  {name}\n", encoding="utf-8")
+          # Remove only older Windows x64 portable archives and their checksums.
+          # This runs after the latest archive has passed official SHA-256 verification.
+          latest_version = tuple(map(int, version.split(".")))
+          for previous in destination.iterdir():
+              match = re.fullmatch(
+                  r"OpenIDEA_(\d+\.\d+\.\d+)_windows_x64_portable\.zip(?:\.sha256)?",
+                  previous.name,
+              )
+              if match and tuple(map(int, match[1].split("."))) < latest_version:
+                  previous.unlink()
+                  print(f"Removed old portable: {previous.name}")
           readme = Path("README.md")
           text = readme.read_text(encoding="utf-8")
           section = (
