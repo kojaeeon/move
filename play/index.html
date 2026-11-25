@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#030711">
+<title>지구 너머</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #f3f7ff;
+    --muted: #a6b4cb;
+    --blue: #9cdaff;
+    --edge: clamp(22px, 5vw, 78px);
+    font-family: system-ui, -apple-system, "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #030711; color: var(--ink); }
+  button { color: inherit; font: inherit; cursor: pointer; }
+  button:focus-visible { outline: 2px solid var(--blue); outline-offset: 5px; }
+  main { position: fixed; inset: 0; overflow: hidden; touch-action: pinch-zoom; }
+  canvas, .shade { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .shade {
+    background:
+      linear-gradient(180deg, #030711b0, transparent 22%, transparent 66%, #030711c9),
+      linear-gradient(90deg, #03071172, transparent 69%);
+  }
+  header {
+    position: absolute; top: max(26px, env(safe-area-inset-top));
+    left: var(--edge); right: var(--edge);
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding-bottom: 19px; border-bottom: 1px solid #d7e8ff28;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 680; font-size: 15px; }
+  .brand-mark { width: 22px; height: 22px; border: 1px solid var(--blue); border-radius: 50%; position: relative; }
+  .brand-mark::after { content: ""; position: absolute; width: 28px; height: 9px; border: 1px solid var(--blue); border-radius: 50%; top: 5px; left: -4px; transform: rotate(-40deg); }
+  .range { text-align: right; }
+  .range span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+  .range output { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: clamp(12px, 1.3vw, 16px); }
+  .scene { position: absolute; left: var(--edge); top: 37%; max-width: calc(100% - 2 * var(--edge) - 35px); pointer-events: none; }
+  .scene p { max-width: 32ch; word-break: keep-all; margin: 12px 0 0; color: #c3d1e6; font-size: clamp(13px, 1.3vw, 17px); line-height: 1.65; text-shadow: 0 2px 12px #030711; }
+  #section-number { display: block; color: var(--blue); font: 13px ui-monospace, monospace; letter-spacing: .18em; margin-bottom: 12px; }
+  h1 { margin: 0; font-size: clamp(44px, 7.6vw, 112px); font-weight: 650; line-height: 1.08; letter-spacing: -.075em; text-shadow: 0 4px 30px #030711b0; }
+  nav { position: absolute; right: var(--edge); top: 50%; transform: translateY(-50%); }
+  nav ol { list-style: none; padding: 0; margin: 0; position: relative; }
+  nav ol::before { content: ""; position: absolute; right: 11px; top: 16px; bottom: 16px; width: 1px; background: #b5c7e05b; }
+  nav button { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-left: auto; min-height: 36px; padding: 0 7px 0 9px; border: 0; background: transparent; font-size: 12px; color: var(--muted); }
+  nav button::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #101a28; border: 1px solid #9caec7; z-index: 1; }
+  nav button[aria-current="step"] { color: var(--ink); }
+  nav button[aria-current="step"]::after { background: var(--blue); border-color: var(--blue); box-shadow: 0 0 13px #6ac7ffba; }
+  nav button:hover { color: white; }
+  footer { position: absolute; left: var(--edge); right: var(--edge); bottom: max(27px, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+  #flight { min-height: 50px; padding: 0 15px; border: 1px solid #b5d7fc77; border-radius: 8px; background: #101d31dd; display: flex; align-items: center; gap: 12px; font-size: 14px; }
+  #flight:hover { background: #1a3048; }
+  #flight-icon { display: grid; place-items: center; width: 15px; color: var(--blue); }
+  #flight-icon::before { content: ""; border-block: 6px solid transparent; border-left: 10px solid currentColor; }
+  #flight[data-active] #flight-icon::before { width: 5px; height: 12px; border: 0; border-inline: 3px solid currentColor; }
+  kbd { border: 1px solid #a7bcdb50; border-radius: 4px; padding: 3px 6px; color: #c5d4eb; font: 11px ui-monospace, monospace; }
+  .hint { color: #bac9df; font-size: 12px; text-align: right; }
+  @media (max-width: 650px) {
+    header { top: max(18px, env(safe-area-inset-top)); padding-bottom: 14px; }
+    .scene { top: 31%; }
+    nav button { min-height: 44px; min-width: 44px; }
+    nav button span { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; white-space: nowrap; }
+    nav ol::before { top: 22px; bottom: 22px; }
+    footer { bottom: max(18px, env(safe-area-inset-bottom)); }
+  }
+  @media (hover: none) { kbd { display: none; } }
+  @media (max-height: 440px) {
+    h1 { font-size: clamp(32px, 7vw, 57px); }
+    .scene { top: 28%; }
+    nav button { min-height: 27px; }
+    #flight { min-height: 40px; }
+  }
+</style>
+</head>
+<body>
+<main aria-label="우주여행">
+  <canvas id="space" aria-hidden="true"></canvas>
+  <div class="shade" aria-hidden="true"></div>
+  <header>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>지구 너머</div>
+    <div class="range"><span id="distance-label">지구로부터</span><output id="distance" aria-labelledby="distance-label" aria-live="off">0 km</output></div>
+  </header>
+  <section class="scene" aria-live="polite" aria-atomic="true">
+    <span id="section-number" aria-hidden="true">01</span>
+    <h1 id="scene-name">지구</h1>
+    <p id="scene-description">푸른 지평선에서 우주여행을 시작하세요.</p>
+  </section>
+  <nav aria-label="탐사 구간">
+    <ol>
+      <li><button type="button" data-stop="0" aria-current="step"><span>지구</span></button></li>
+      <li><button type="button" data-stop="1"><span>지구와 달</span></button></li>
+      <li><button type="button" data-stop="2"><span>태양계</span></button></li>
+      <li><button type="button" data-stop="3"><span>우리은하</span></button></li>
+      <li><button type="button" data-stop="4"><span>깊은 우주</span></button></li>
+    </ol>
+  </nav>
+  <footer>
+    <button type="button" id="flight" aria-keyshortcuts="Space">
+      <span id="flight-icon" aria-hidden="true"></span><span id="flight-label">비행 시작</span><kbd aria-hidden="true">Space</kbd>
+    </button>
+    <span class="hint" id="hint">스크롤로 둘러보기</span>
+  </footer>
+</main>
+<script>
+"use strict";
+
+const canvas = document.querySelector("#space");
+const context = canvas.getContext("2d");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const touchInput = matchMedia("(hover: none)");
+const TAU = 2 * Math.PI;
+const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
+const mix = (from, to, amount) => from + (to - from) * amount;
+const smooth = (amount) => {
+  const t = clamp(amount);
+  return t * t * (3 - 2 * t);
+};
+function randomGenerator(seed) {
+  return () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+}
+function surface(size) {
+  const layer = document.createElement("canvas");
+  layer.width = layer.height = size;
+  return layer;
+}
+function glow(painter, x, y, radius, stops) {
+  const gradient = painter.createRadialGradient(x, y, 0, x, y, radius);
+  for (const [at, color] of stops) gradient.addColorStop(at, color);
+  painter.fillStyle = gradient;
+  painter.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+}
+
+function makeGlobe(size, moon = false) {
+  const layer = surface(size);
+  const painter = layer.getContext("2d");
+  const image = painter.createImageData(size, size);
+  const random = randomGenerator(2659);
+  const mapSize = 128;
+  const noiseMap = Float32Array.from({ length: mapSize ** 2 }, () => random());
+  function noise(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const sx = smooth(x - ix), sy = smooth(y - iy);
+    const cell = (col, row) => noiseMap[(row & 127) * mapSize + (col & 127)];
+    return mix(mix(cell(ix, iy), cell(ix + 1, iy), sx),
+      mix(cell(ix, iy + 1), cell(ix + 1, iy + 1), sx), sy);
+  }
+  const terrain = (x, y) => noise(x, y) * .55 + noise(x * 2.07, y * 2.07) * .27
+    + noise(x * 4.11, y * 4.11) * .12 + noise(x * 9.1, y * 9.1) * .06;
+  // Broad geographic shapes anchor the procedural terrain to recognizable continents.
+  const continents = [
+    [[-166,67],[-140,71],[-113,72],[-93,78],[-71,68],[-56,52],[-69,46],[-81,30],[-96,19],[-84,16],[-80,9],[-92,14],[-111,25],[-124,46],[-135,57],[-153,58]],
+    [[-81,10],[-70,12],[-59,7],[-48,1],[-34,-7],[-42,-23],[-54,-34],[-67,-55],[-74,-44],[-72,-30],[-81,-8]],
+    [[-57,60],[-44,60],[-20,73],[-23,82],[-51,84],[-66,76]],
+    [[-17,32],[-7,36],[12,37],[25,32],[33,31],[44,12],[51,10],[41,-13],[34,-25],[23,-35],[15,-28],[10,-14],[4,5],[-11,5],[-18,15]],
+    [[-9,36],[-10,44],[3,49],[7,54],[20,59],[24,71],[64,75],[95,76],[137,73],[178,67],[163,59],[141,50],[128,43],[122,25],[106,11],[104,2],[96,8],[89,23],[80,8],[72,19],[67,25],[54,25],[49,14],[42,13],[36,31],[24,37],[15,43],[9,38]],
+    [[112,-22],[121,-14],[135,-13],[142,-10],[153,-24],[151,-36],[137,-39],[126,-34],[114,-34]]
+  ];
+  function isLand(x, y) {
+    return continents.some((polygon) => {
+      let inside = false;
+      for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+        const [ax, ay] = polygon[index], [bx, by] = polygon[previous];
+        if ((ay > y) !== (by > y) && x < (bx - ax) * (y - ay) / (by - ay) + ax) inside = !inside;
+      }
+      return inside;
+    }) || y < -72;
+  }
+  const map = surface(512).getContext("2d");
+  const geography = map.createImageData(512, 256);
+  if (!moon) {
+    for (let row = 0; row < 256; row++) {
+      for (let col = 0; col < 512; col++) {
+        const lon = col / 512 * 360 - 180, lat = 90 - row / 256 * 180;
+        const lateral = (terrain(col * .09, row * .09) - .5) * 15;
+        const vertical = (terrain(col * .09 + 43, row * .09 + 27) - .5) * 12;
+        geography.data[(row * 512 + col) * 4] = Number(isLand(lon + lateral, lat + vertical));
+      }
+    }
+  }
+  for (let row = 0; row < size; row++) {
+    const y = (row + .5) / size * 2 - 1;
+    for (let col = 0; col < size; col++) {
+      const x = (col + .5) / size * 2 - 1;
+      const radial = Math.hypot(x, y);
+      if (radial >= 1) continue;
+      const z = Math.sqrt(1 - radial ** 2);
+      const latitude = Math.asin(clamp(-y * .978 + x * .207, -1, 1));
+      const longitude = Math.atan2(x * .978 + y * .207, z) * 180 / Math.PI - 27;
+      const u = (longitude + 180) / 360;
+      const v = .5 - latitude / Math.PI;
+      const pattern = terrain(u * 56, v * 34);
+      const light = clamp(-x * .55 - y * .48 + z * .69, moon ? .10 : .14, 1);
+      const pixel = (row * size + col) * 4;
+      let red, green, blue;
+      if (moon) {
+        const stone = 86 + pattern * 164 + (noise(u * 11, v * 10) - .5) * 74;
+        red = stone; green = stone * .97; blue = stone * .94;
+      } else {
+        const land = geography.data[(Math.floor(clamp(v, 0, .9999) * 256) * 512 + Math.floor(((u + 1) % 1) * 512)) * 4];
+        const dry = smooth((pattern - .34) * 3.6) * smooth((.95 - Math.abs(latitude)) * 2.3);
+        const ice = smooth((Math.abs(latitude) + (pattern - .5) * .45 - 1) * 2.8);
+        red = land ? mix(45, 165, dry) : 6 + pattern * 14;
+        green = land ? mix(97, 123, dry) : 39 + pattern * 64;
+        blue = land ? mix(66, 80, dry) : 81 + pattern * 122;
+        const cloud = smooth((terrain(u * 43 + 5 * Math.sin(v * 23), v * 40 + 53) - .48) * 3.6);
+        const white = Math.max(cloud * .92, ice);
+        red = mix(red, 233, white); green = mix(green, 244, white); blue = mix(blue, 255, white);
+      }
+      const atmosphere = moon ? 0 : (1 - z) ** 3 * (.3 + light * .7);
+      image.data[pixel] = red * light + 50 * atmosphere;
+      image.data[pixel + 1] = green * light + 123 * atmosphere;
+      image.data[pixel + 2] = blue * light + 216 * atmosphere;
+      image.data[pixel + 3] = 255 * clamp((1 - radial) * size / 2);
+    }
+  }
+  painter.putImageData(image, 0, 0);
+  return layer;
+}
+
+function makeGalaxy() {
+  const size = 520;
+  const layer = surface(size);
+  const painter = layer.getContext("2d");
+  const random = randomGenerator(697);
+  const center = size / 2;
+  glow(painter, center, center, 200, [[0, "#fff2c8"], [.065, "#ffe2abcc"], [.13, "#ffd1a367"], [.31, "#bd8cc536"], [.66, "#5574ae22"], [1, "#3258ad00"]]);
+  painter.globalCompositeOperation = "lighter";
+  for (let index = 0; index < 4800; index++) {
+    const radius = (1 - random() ** 2.1) * 231;
+    const thickness = (random() + random() + random() - 1.5) * (.33 + radius / 330);
+    const angle = (index % 4) * TAU / 4 + Math.log(1 + radius / 29) * 2.9 + thickness;
+    const x = center + Math.cos(angle) * radius;
+    const y = center + Math.sin(angle) * radius;
+    const alpha = (1 - radius / 248) * (.08 + random() * .28);
+    painter.fillStyle = index % 9 === 0 ? `rgba(255,160,187,${alpha})` : `rgba(116,171,255,${alpha})`;
+    const dot = .4 + random() ** 4 * 5;
+    painter.beginPath();
+    painter.arc(x, y, dot, 0, TAU);
+    painter.fill();
+  }
+  return layer;
+}
+
+const earth = makeGlobe(800);
+const moon = makeGlobe(144, true);
+const spiral = makeGalaxy();
+const starRandom = randomGenerator(586143);
+const stars = Array.from({ length: 670 }, () => ({
+  x: starRandom() * 2 - 1, y: starRandom() * 2 - 1, z: starRandom(),
+  size: .4 + starRandom() ** 4 * 1.5, light: .15 + starRandom() ** 2 * .8
+}));
+const waypoints = [
+  { name: "지구", description: "푸른 지평선에서 우주여행을 시작하세요.", km: 0 },
+  { name: "지구와 달", description: "조금 더 멀어지자 지구와 달이 한눈에 들어옵니다.", km: 384400 },
+  { name: "태양계", description: "태양 주위로 행성들의 궤도가 펼쳐집니다. 궤도와 천체 크기는 보기 쉽게 조정했습니다.", km: 6.5e9 },
+  { name: "우리은하", description: "태양계가 속한 우리은하의 나선팔이 드러납니다.", km: 9.4607e17 },
+  { name: "깊은 우주", description: "은하 무리를 지나 계속 탐사합니다. 이후 풍경은 절차적으로 생성됩니다.", km: 2.5e19 }
+];
+const planets = [
+  [.13, .17, "#b8aea2", .23], [.21, .26, "#dfb281", .59], [.30, .30, "#5daeff", .86],
+  [.39, .24, "#df8c65", .40], [.52, .86, "#cda17c", .94], [.66, .73, "#d3b892", .12],
+  [.81, .47, "#93c6cf", .67], [.96, .43, "#668cef", .39]
+];
+
+let width = 1, height = 1;
+let position = 0, target = 0, speed = 0, starTravel = 0;
+let flying = false, started = false, jump = false, lastFrame = 0, frameRequest = 0;
+let displayedStage = -1, displayedSegment = -1, lastDistanceUpdate = -1;
+let touchY = null;
+let cachedFieldNumber = -1, cachedField = [];
+const flightButton = document.querySelector("#flight");
+const flightLabel = document.querySelector("#flight-label");
+const sceneName = document.querySelector("#scene-name");
+const description = document.querySelector("#scene-description");
+const sectionNumber = document.querySelector("#section-number");
+const distance = document.querySelector("#distance");
+const stops = [...document.querySelectorAll("[data-stop]")];
+
+function resize() {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(width * ratio);
+  canvas.height = Math.round(height * ratio);
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  requestFrame();
+}
+function drawStars(motion) {
+  const centerX = width * .53, centerY = height * .48;
+  const extent = Math.max(width, height);
+  const streak = reducedMotion.matches ? 0 : motion;
+  for (const star of stars) {
+    const depth = .15 + ((star.z - starTravel % 1 + 1) % 1);
+    const scale = .57 / depth;
+    const x = centerX + star.x * extent * scale;
+    const y = centerY + star.y * extent * scale;
+    if (x < 0 || x > width || y < 0 || y > height) continue;
+    const brightness = star.light * Math.min(1, depth * 4);
+    const reach = Math.min(.31, streak * .16 / depth);
+    context.fillStyle = `rgba(191,215,255,${brightness})`;
+    const dot = star.size * Math.min(1.4, scale + .4);
+    context.fillRect(x, y, dot, dot);
+    if (reach > .005) {
+      const tailX = mix(x, centerX, reach), tailY = mix(y, centerY, reach);
+      const gradient = context.createLinearGradient(tailX, tailY, x, y);
+      gradient.addColorStop(0, "rgba(89,145,246,0)");
+      gradient.addColorStop(1, `rgba(193,222,255,${brightness * .88})`);
+      context.strokeStyle = gradient;
+      context.lineWidth = dot * .86;
+      context.beginPath();
+      context.moveTo(tailX, tailY);
+      context.lineTo(x, y);
+      context.stroke();
+    }
+  }
+}
+function globe(layer, x, y, radius, atmosphere = false) {
+  if (atmosphere) {
+    const glowRadius = radius * 1.07;
+    glow(context, x, y, glowRadius, [[0, "#1778ba00"], [.90, "#1778ba00"], [.935, "#379dff86"], [.955, "#3494ff43"], [1, "#3689ff00"]]);
+  }
+  context.drawImage(layer, x - radius, y - radius, radius * 2, radius * 2);
+}
+function drawEarth(progress, alpha) {
+  const scale = Math.min(width, height);
+  const orbit = smooth(progress);
+  const retreat = smooth(progress - 1);
+  const radius = mix(Math.max(width * .57, height * .67), scale * .12, orbit) * mix(1, .10, retreat);
+  const x = width * mix(.52, .63, orbit);
+  const y = mix(height * .62 + radius, height * .48, orbit);
+  context.globalAlpha = alpha;
+  globe(earth, x, y, radius, true);
+  context.globalAlpha = alpha * smooth((progress - .25) * 2);
+  globe(moon, x + Math.min(width * .21, scale * .38) * mix(1, .25, retreat),
+    y - scale * .16 * mix(1, .3, retreat), scale * .032 * mix(1, .17, retreat));
+}
+function drawSolar(progress, alpha) {
+  context.globalAlpha = alpha;
+  const compact = width < 650;
+  const scale = Math.min(width * (compact ? .44 : .40), height * .60);
+  const radius = scale * mix(.79, 1.0, smooth((progress - 1.35) * 1.7)) * mix(1, .08, smooth(progress - 2));
+  const x = width * (compact ? .52 : .59), y = height * (compact ? .61 : .52);
+  const tilt = -.18;
+  context.save();
+  context.translate(x, y);
+  context.rotate(tilt);
+  context.lineWidth = 1;
+  for (const [orbit, size, color, phase] of planets) {
+    const major = radius * orbit;
+    const minor = major * .41;
+    context.strokeStyle = "#9bb8df46";
+    context.beginPath();
+    context.ellipse(0, 0, major, minor, 0, 0, TAU);
+    context.stroke();
+    const angle = (phase + (progress - 2) * .31 / (1 + orbit * 3)) * TAU;
+    const px = Math.cos(angle) * major, py = Math.sin(angle) * minor;
+    const r = Math.max(.5, radius * size * .032);
+    if (color === "#d3b892") {
+      context.strokeStyle = "#e9cda6a9";
+      context.beginPath();
+      context.ellipse(px, py, r * 1.8, r * .53, -.2, 0, TAU);
+      context.stroke();
+    }
+    glow(context, px, py, r, [[0, "#f8f8ff"], [.25, color], [.72, color], [1, "#0e172400"]]);
+  }
+  glow(context, 0, 0, Math.max(3, radius * .18), [[0, "#fff7dc"], [.13, "#fff0ac"], [.21, "#ffc563"], [.30, "#ff9b33a8"], [.53, "#e063263d"], [1, "#de591300"]]);
+  context.restore();
+}
+function galaxy(x, y, size, rotation, flatten) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  context.scale(1, flatten);
+  context.drawImage(spiral, -size / 2, -size / 2, size, size);
+  context.restore();
+}
+function drawMilkyWay(progress, alpha) {
+  context.globalAlpha = alpha;
+  const compact = width < 650;
+  const scale = Math.min(width, height);
+  const size = scale * mix(.53, .81, smooth((progress - 2.4) * 1.7)) * mix(1, .28, smooth(progress - 3));
+  galaxy(width * (compact ? .55 : .65), height * (compact ? .61 : .51), size, -.31, .51);
+}
+function drawDeepSpace(progress) {
+  const current = Math.max(0, progress - 3);
+  const segment = Math.floor(current);
+  if (segment !== cachedFieldNumber) {
+    cachedFieldNumber = segment;
+    cachedField = [segment, segment + 1].map((seed) => {
+      const random = randomGenerator(20291 + seed * 139);
+      return Array.from({ length: 13 }, () => ({
+        x: .1 + random() * .78, y: .14 + random() * .73, size: .03 + random() ** 2 * .22,
+        angle: random() * Math.PI, tilt: .22 + random() * .56, tint: random()
+      }));
+    });
+  }
+  const blend = smooth(current - segment);
+  for (const [index, field] of cachedField.entries()) {
+    const opacity = index === 0 ? 1 - blend : blend;
+    for (const item of field) {
+      context.globalAlpha = opacity * (.37 + item.tint * .58) * smooth((progress - 3.12) * 1.3);
+      const shift = index === 0 ? 1 + blend * .45 : .56 + blend * .44;
+      galaxy(width * (.55 + (item.x - .55) * shift), height * (.52 + (item.y - .52) * shift),
+        Math.min(width, height) * item.size * shift, item.angle, item.tilt);
+    }
+  }
+}
+
+function draw(motion) {
+  context.globalAlpha = 1;
+  context.fillStyle = "#030711";
+  context.fillRect(0, 0, width, height);
+  glow(context, width * .66, height * .59, Math.max(width, height) * .72,
+    [[0, "#111d34"], [.46, "#0a1324"], [1, "#04071100"]]);
+  drawStars(motion);
+  if (position < 2) drawEarth(position, 1 - smooth((position - 1.22) / .73));
+  if (position > 1.25 && position < 3) drawSolar(position, smooth((position - 1.25) * 1.8) * (1 - smooth((position - 2.25) * 1.5)));
+  if (position > 2.35 && position < 4.24) drawMilkyWay(position, smooth((position - 2.35) * 1.9) * (1 - smooth((position - 3.58) * 1.5)));
+  if (position > 3.12) drawDeepSpace(position);
+  context.globalAlpha = 1;
+}
+
+const numberFormat = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 });
+function formatDistance(progress) {
+  const from = Math.min(Math.floor(progress), 4);
+  const logDistance = from === 4
+    ? Math.log10(waypoints[4].km) + (progress - 4) * .38
+    : mix(Math.log10(waypoints[from].km + 1), Math.log10(waypoints[from + 1].km + 1), progress - from);
+  const lightYearsLog = logDistance - Math.log10(9.4607e12);
+  if (lightYearsLog >= 9) return `10^${numberFormat.format(lightYearsLog)} 광년`;
+  const km = 10 ** logDistance - 1;
+  if (km >= 9.4607e12) return `${numberFormat.format(km / 9.4607e12)} 광년`;
+  if (km >= 1.495978707e8) return `${numberFormat.format(km / 1.495978707e8)} AU`;
+  return `${numberFormat.format(Math.round(km))} km`;
+}
+function updateReadouts(time) {
+  const stage = Math.min(4, Math.floor(position + .42));
+  const segment = Math.floor(Math.max(0, position - 4));
+  if (stage !== displayedStage) {
+    displayedStage = stage;
+    sceneName.textContent = waypoints[stage].name;
+    description.textContent = waypoints[stage].description;
+    stops.forEach((stop, index) => {
+      if (index === stage) stop.setAttribute("aria-current", "step");
+      else stop.removeAttribute("aria-current");
+    });
+  }
+  if (segment !== displayedSegment || sectionNumber.dataset.stage !== String(stage)) {
+    displayedSegment = segment;
+    sectionNumber.dataset.stage = stage;
+    sectionNumber.textContent = String(stage + 1 + segment).padStart(2, "0");
+  }
+  if (time - lastDistanceUpdate > 65 || Math.abs(position - target) < .001 && !flying) {
+    lastDistanceUpdate = time;
+    distance.value = formatDistance(position);
+  }
+}
+function requestFrame() {
+  if (!frameRequest) frameRequest = requestAnimationFrame(frame);
+}
+function frame(time) {
+  frameRequest = 0;
+  const dt = lastFrame ? Math.min((time - lastFrame) / 1000, .05) : 0;
+  lastFrame = time;
+  if (flying) {
+    const nearest = Math.round(position);
+    const arrival = nearest <= 3 ? Math.exp(-((position - nearest) ** 2) / .025) : 0;
+    const cruise = (1.0 - .67 * arrival) * (reducedMotion.matches ? .5 : 1);
+    speed = mix(speed, cruise, 1 - Math.exp(-dt * 3.5));
+    position += speed * dt;
+    target = position;
+    if (!reducedMotion.matches) starTravel += speed * dt * .54;
+  } else if (Math.abs(target - position) > .001) {
+    const rate = jump ? 3.8 : 10;
+    position = reducedMotion.matches ? target : mix(position, target, 1 - Math.exp(-rate * dt));
+  } else {
+    position = target;
+    jump = false;
+  }
+  draw(speed);
+  updateReadouts(time);
+  if (flying || target !== position) requestFrame();
+  else lastFrame = 0;
+}
+function setFlight(active) {
+  flying = active;
+  if (active) started = true;
+  speed = 0;
+  target = position;
+  jump = false;
+  flightButton.toggleAttribute("data-active", active);
+  flightLabel.textContent = active ? "비행 정지" : started ? "비행 재개" : "비행 시작";
+  requestFrame();
+}
+function manualMove(delta) {
+  if (flying) setFlight(false);
+  if (jump) target = position;
+  jump = false;
+  target = Math.max(0, target + delta);
+  requestFrame();
+}
+
+flightButton.addEventListener("click", () => setFlight(!flying));
+window.addEventListener("keydown", (event) => {
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.code === "Space" && event.target !== flightButton) {
+    event.preventDefault();
+    if (!event.repeat) setFlight(!flying);
+  } else if (["ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(event.key)) {
+    event.preventDefault();
+    const direction = event.key.endsWith("Down") ? 1 : -1;
+    manualMove(direction * (event.key.startsWith("Page") ? .45 : .10));
+  }
+});
+window.addEventListener("wheel", (event) => {
+  if (event.ctrlKey || !event.deltaY) return;
+  event.preventDefault();
+  const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? height : 1;
+  manualMove(clamp(event.deltaY * multiplier / 850, -.85, .85));
+}, { passive: false });
+document.querySelector("main").addEventListener("touchstart", (event) => {
+  touchY = event.touches.length === 1 && !event.target.closest("button") ? event.touches[0].clientY : null;
+}, { passive: true });
+document.querySelector("main").addEventListener("touchmove", (event) => {
+  if (touchY === null || event.touches.length !== 1) return;
+  const y = event.touches[0].clientY;
+  manualMove((touchY - y) / 390);
+  touchY = y;
+}, { passive: true });
+for (const name of ["touchend", "touchcancel"]) {
+  document.querySelector("main").addEventListener(name, () => { touchY = null; });
+}
+stops.forEach((stop) => {
+  stop.addEventListener("click", () => {
+    setFlight(false);
+    target = Number(stop.dataset.stop);
+    jump = true;
+    requestFrame();
+  });
+});
+function updateHint() {
+  document.querySelector("#hint").textContent = touchInput.matches ? "위아래로 밀어 둘러보기" : "스크롤로 둘러보기";
+}
+touchInput.addEventListener("change", updateHint);
+reducedMotion.addEventListener("change", requestFrame);
+document.addEventListener("visibilitychange", () => {
+  lastFrame = 0;
+  if (!document.hidden) requestFrame();
+});
+window.addEventListener("resize", resize);
+updateHint();
+resize();
+</script>
+</body>
+</html>
