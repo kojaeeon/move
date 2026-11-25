@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#060d16">
+<meta name="description" content="두 가닥을 타고 퍼지는 빛으로 DNA 이중나선을 탐색하는 3D 전시입니다.">
+<title>DNA 이중나선 · 빛의 파동</title>
+<style>
+:root{color-scheme:dark;--paper:#ecf5fa;--muted:#a2b2c4;--dim:#72869a;--line:#253548;--light:#83f1ed;--pair-at:#74eadc;--pair-gc:#f0b484;background:#060d16;color:var(--paper);font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-width:280px;background:radial-gradient(ellipse at 73% 42%,#132237 0,transparent 57%),#060d16}
+main{max-width:1435px;margin:auto;padding:0 clamp(16px,5vw,73px) 30px}
+header{height:69px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-size:.92rem;font-weight:650}
+.mark{width:29px;height:29px;display:grid;place-items:center;color:var(--light);border:1px solid #527c89;border-radius:50%}
+.mark svg{width:14px;height:18px}
+.technical,.eyebrow,.readout{font-family:ui-monospace,monospace;letter-spacing:.13em}
+.technical{color:var(--muted);font-size:.75rem}
+.layout{display:grid;grid-template-columns:minmax(228px,.70fr) minmax(0,1.48fr);gap:clamp(28px,5vw,79px);align-items:center;padding-top:clamp(25px,6vh,61px)}
+.eyebrow{margin:0 0 13px;color:var(--light);font-size:.82rem}
+h1{font-size:clamp(3.45rem,7.45vw,7.7rem);line-height:.91;letter-spacing:-.07em;margin:0;font-weight:630}
+h1 span{display:block;margin-top:.22em;font-size:.52em;letter-spacing:-.075em;font-weight:600}
+.intro-copy{color:#c5d2df;font-size:1rem;line-height:1.82;word-break:keep-all;max-width:27rem;margin:24px 0 26px}
+.legend{display:flex;flex-wrap:wrap;gap:13px 25px;border-block:1px solid var(--line);padding:14px 0;font-size:.91rem}
+.legend span,.connection{display:inline-flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--pair-at);box-shadow:0 0 12px #76eadd70;display:inline-block;flex:none}
+.dot.gc{background:var(--pair-gc);box-shadow:0 0 12px #f0b48460}
+.note{color:var(--muted);font-size:.8rem;margin:14px 0 0;line-height:1.55;word-break:keep-all}
+.exhibit{min-width:0;border-radius:19px;border:1px solid #32465c;overflow:hidden;background:#0c1622;box-shadow:0 24px 90px #0006}
+.stage{position:relative;height:clamp(455px,65vh,730px);isolation:isolate;background:radial-gradient(ellipse at 49% 48%,#1b4359 0,#11273a 37%,#0b1827 69%,#091320 100%)}
+.stage::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(#6989a014 1px,transparent 1px),linear-gradient(90deg,#6989a014 1px,transparent 1px);background-size:35px 35px;mask-image:radial-gradient(ellipse,#000 12%,transparent 83%)}
+canvas{display:block;width:100%;height:100%;position:relative;cursor:grab;touch-action:none}
+canvas:active{cursor:grabbing}
+:focus-visible{outline:2px solid var(--light);outline-offset:3px}
+canvas:focus-visible{outline-offset:-4px}
+.stage-top{position:absolute;z-index:1;inset:15px 16px auto;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
+.stage-top button{pointer-events:auto}
+.readout{padding:8px 10px;border:1px solid #3c596c;border-radius:7px;background:#0c1d2bd9;color:#b7d8e6;font-size:.74rem}
+.hint{position:absolute;bottom:12px;left:12px;right:12px;text-align:center;pointer-events:none;font-size:.82rem;color:#c3cdd8;margin:0;text-shadow:0 1px 7px #06121c}
+.panel{padding:15px 17px 16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.controls{display:flex;gap:7px;flex-wrap:wrap}
+button{min-height:39px;font:inherit;font-size:.87rem;padding:7px 11px;border-radius:8px;border:1px solid #405368;background:#142336;color:var(--paper);cursor:pointer}
+button:hover{background:#213750;border-color:#6d93a4}
+button[aria-pressed="true"],#random{background:#173b47;border-color:#457584;color:#c5fcf5}
+button:disabled{opacity:.45;cursor:default}
+.connection{font-size:.83rem;color:#b9c8d5;min-height:23px}
+.connection strong{color:var(--paper);font-size:.92rem}
+.connection .dot[hidden]{display:none}
+.empty{position:absolute;top:42%;left:12%;right:12%;text-align:center;color:var(--paper)}
+@media(max-width:780px){header{height:53px}.layout{grid-template-columns:1fr;gap:18px;padding-top:22px}.eyebrow{margin-bottom:7px}h1{font-size:clamp(2.65rem,10vw,4rem);display:flex;align-items:baseline;gap:.2em}h1 span{font-size:.56em;margin:0}.intro-copy{margin:9px 0 11px}.legend{padding:9px 0}.note{margin-top:8px}.stage{height:clamp(360px,100vw,520px)}.panel{padding:11px 12px}.stage-top{inset:10px 12px auto}}
+@media(max-width:370px){.technical{font-size:.64rem}.hint{font-size:.73rem}button{font-size:.8rem;padding-inline:8px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 24" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M3 2c0 6 10 6 10 10S3 18 3 22M13 2c0 6-10 6-10 10s10 6 10 10M4 5h8M4 12h8M4 19h8"/></svg></span> 구조 전시실</div>
+  <span class="technical">DOUBLE HELIX</span>
+</header>
+<div class="layout">
+<section aria-labelledby="title">
+  <p class="eyebrow">빛의 파동</p>
+  <h1 id="title">DNA <span>이중나선</span></h1>
+  <p class="intro-copy">같은 축을 감는 두 가닥을 염기쌍이 이어 줍니다. 가로대 하나를 누르면 두 가닥을 따라 빛이 위아래로 퍼져요.</p>
+  <div class="legend" aria-label="염기쌍 범례"><span><i class="dot" aria-hidden="true"></i>A–T</span><span><i class="dot gc" aria-hidden="true"></i>G–C</span></div>
+  <p class="note">구조를 보기 쉽게 단순화한 전시 모델입니다.</p>
+</section>
+<section class="exhibit" aria-label="DNA 이중나선 인터랙티브 3D">
+  <div class="stage" id="stage">
+    <div class="stage-top"><span class="readout">3D · 이중나선</span><button type="button" id="reset">시점 초기화</button></div>
+    <canvas id="model" tabindex="0" aria-label="DNA 이중나선. 방향키로 회전, 더하기와 빼기로 확대 및 축소, 스페이스로 랜덤 파동을 실행합니다."></canvas>
+    <p class="empty" id="empty" hidden>이 브라우저에서 3D 뷰어를 표시할 수 없습니다.</p>
+    <p class="hint">드래그로 회전 · 휠 또는 두 손가락으로 확대</p>
+  </div>
+  <div class="panel">
+    <div class="controls">
+      <button type="button" id="random">랜덤 파동</button>
+      <button type="button" id="spin" aria-pressed="true">자동 회전</button>
+      <button type="button" id="palette">조명 바꾸기</button>
+    </div>
+    <div class="connection" role="status"><i id="selected-dot" class="dot" hidden aria-hidden="true"></i><span id="status">가로대를 눌러 보세요</span></div>
+  </div>
+</section>
+</div>
+</main>
+<script>
+'use strict';
+const canvas = document.getElementById('model');
+const stage = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const reset = document.getElementById('reset');
+const spin = document.getElementById('spin');
+const random = document.getElementById('random');
+const palette = document.getElementById('palette');
+const status = document.getElementById('status');
+const selectedDot = document.getElementById('selected-dot');
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const rand = (min, max) => min + Math.random() * (max - min);
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const TAU = 2 * Math.PI;
+const STRIDE = 5;
+const PAIR_COUNT = 29;
+const SEGMENT_COUNT = (PAIR_COUNT - 1) * STRIDE;
+const HEIGHT = 5.9;
+const RADIUS = 1.03;
+const pairKinds = ['A–T', 'G–C'];
+const palettes = [
+  { strand: [[100, 207, 234], [222, 237, 247]], pulse: [91, 255, 225], stage: '#1b4359' },
+  { strand: [[181, 144, 250], [253, 204, 161]], pulse: [251, 189, 248], stage: '#382f60' },
+  { strand: [[96, 205, 175], [236, 227, 173]], pulse: [227, 255, 179], stage: '#21483f' }
+];
+const pairColors = [[116, 234, 220], [240, 180, 132]];
+
+function helixPoint(index, strand) {
+  const fraction = index / SEGMENT_COUNT;
+  const angle = fraction * TAU * 2.65 + strand * Math.PI;
+  return [RADIUS * Math.cos(angle), (fraction - 0.5) * HEIGHT, RADIUS * Math.sin(angle)];
+}
+
+const strands = [0, 1].map(strand => Array.from({ length: SEGMENT_COUNT + 1 },
+  (_, index) => helixPoint(index, strand)));
+const pairs = Array.from({ length: PAIR_COUNT }, (_, index) => ({
+  index, sample: index * STRIDE, kind: index % 2
+}));
+const stars = Array.from({ length: 76 }, () => [Math.random(), Math.random(), rand(0.35, 1.35), rand(0.10, 0.47)]);
+const defaultView = { yaw: 0.56, pitch: -0.16, roll: -0.44 };
+const view = { ...defaultView, yaw: rand(-1.3, 1.3), pitch: rand(-0.3, 0.17), roll: rand(-0.55, -0.36) };
+let zoom = 1;
+let autoRotate = !reducedMotion;
+let paletteIndex = 0;
+let selected = -1;
+let hovered = -1;
+let width = 0;
+let height = 0;
+let frameId;
+let lastTime = 0;
+let pulse = null;
+let nextPulse = performance.now() + 3900;
+let targetPoints = [];
+let hadGesture = false;
+const pointers = new Map();
+
+function requestDraw() {
+  if (frameId === undefined) frameId = requestAnimationFrame(frame);
+}
+
+function resize() {
+  const scale = Math.min(devicePixelRatio || 1, 2);
+  width = canvas.clientWidth;
+  height = canvas.clientHeight;
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  requestDraw();
+}
+
+function rgb(color, alpha = 1) {
+  const [r, g, b] = color;
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+
+function shade(color, factor, light = 0) {
+  return color.map(value => Math.round(clamp(value * factor + light, 0, 255)));
+}
+
+function waveAt(pairIndex, time) {
+  if (!pulse) return pairIndex === selected ? 0.30 : 0;
+  const distance = Math.abs(pairIndex - pulse.origin);
+  if (reducedMotion) return Math.max(0, 1 - distance / 5);
+  const front = (time - pulse.start) * pulse.speed;
+  const intensity = Math.exp(-((distance - front) ** 2) / (front > distance ? 12 : 3.4));
+  return Math.max(intensity, pairIndex === selected ? 0.25 : 0);
+}
+
+function launch(index, announce) {
+  const time = performance.now();
+  pulse = { origin: index, start: time, speed: rand(0.007, 0.014) };
+  nextPulse = time + rand(4200, 6600);
+  if (announce) {
+    selected = index;
+    const pair = pairs[index];
+    selectedDot.classList.toggle('gc', pair.kind === 1);
+    selectedDot.hidden = false;
+    const label = document.createElement('strong');
+    label.textContent = pairKinds[pair.kind];
+    status.replaceChildren(label, ' · ' + (reducedMotion ? '선택한 염기쌍' : '파동 시작점'));
+  }
+  requestDraw();
+}
+
+function randomPair() {
+  const previous = pulse?.origin ?? selected;
+  const index = Math.floor(rand(0, PAIR_COUNT - Number(previous >= 0)));
+  return previous >= 0 && index >= previous ? index + 1 : index;
+}
+
+function camera() {
+  const cosYaw = Math.cos(view.yaw), sinYaw = Math.sin(view.yaw);
+  const cosPitch = Math.cos(view.pitch), sinPitch = Math.sin(view.pitch);
+  const cosRoll = Math.cos(view.roll), sinRoll = Math.sin(view.roll);
+  const scale = Math.min(width / 5.4, height / 7.3) * zoom * 10;
+  return ([x, y, z]) => {
+    const horizontal = x * cosYaw + z * sinYaw;
+    const forward = -x * sinYaw + z * cosYaw;
+    const vertical = y * cosPitch - forward * sinPitch;
+    const depth = y * sinPitch + forward * cosPitch;
+    const perspective = scale / (10 - depth);
+    return {
+      x: width / 2 + (horizontal * cosRoll - vertical * sinRoll) * perspective,
+      y: height / 2 - (horizontal * sinRoll + vertical * cosRoll) * perspective,
+      depth, scale: perspective
+    };
+  };
+}
+
+function segment(a, b, color, thickness, glow, pulseColor, rail) {
+  const angle = Math.atan2(b.y - a.y, b.x - a.x);
+  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  if (length < 0.1) return;
+  const radius = thickness * (a.scale + b.scale) / 2;
+  const depthLight = 0.78 + clamp((a.depth + b.depth + 2.1) / 6, 0, 1) * 0.20;
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.rotate(angle);
+  ctx.lineCap = 'round';
+  if (glow > 0.06) {
+    ctx.lineWidth = radius * (2.8 + glow * 1.8);
+    ctx.strokeStyle = rgb(pulseColor, 0.075 + glow * 0.20);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(length, 0);
+    ctx.stroke();
+  }
+  const mixed = color.map((value, index) => Math.round(value * (1 - glow * 0.36) + pulseColor[index] * glow * 0.36));
+  const metal = ctx.createLinearGradient(0, -radius, 0, radius);
+  metal.addColorStop(0, rgb(shade(mixed, 0.55 * depthLight, 6)));
+  metal.addColorStop(0.28, rgb(shade(mixed, depthLight, 48 * glow + (rail ? 31 : 10))));
+  metal.addColorStop(0.56, rgb(shade(mixed, 0.86 * depthLight, 25 * glow)));
+  metal.addColorStop(1, rgb(shade(mixed, 0.36 * depthLight, 10)));
+  ctx.lineWidth = radius * 2;
+  ctx.strokeStyle = metal;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(length, 0);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function node(point, color, glow, pulseColor, active) {
+  const radius = point.scale * (active ? 0.116 : 0.095);
+  if (glow > 0.12) {
+    const haloRadius = radius * (2.0 + glow * 2.9);
+    const halo = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, haloRadius);
+    halo.addColorStop(0, rgb(pulseColor, glow * 0.69));
+    halo.addColorStop(1, rgb(pulseColor, 0));
+    ctx.fillStyle = halo;
+    ctx.fillRect(point.x - haloRadius, point.y - haloRadius, haloRadius * 2, haloRadius * 2);
+  }
+  const shine = ctx.createRadialGradient(point.x - radius * 0.31, point.y - radius * 0.36, 0, point.x, point.y, radius);
+  shine.addColorStop(0, '#f0feff');
+  shine.addColorStop(0.46, rgb(shade(color, 0.95, glow * 52 + 11)));
+  shine.addColorStop(1, rgb(shade(color, 0.39, glow * 42 + 16)));
+  ctx.fillStyle = shine;
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, radius, 0, TAU);
+  ctx.fill();
+}
+
+function frame(time) {
+  frameId = undefined;
+  const elapsed = lastTime ? Math.min(time - lastTime, 50) : 0;
+  lastTime = time;
+  if (autoRotate && pointers.size === 0) view.yaw += elapsed * 0.00043;
+  if (!reducedMotion && time >= nextPulse) {
+    const index = randomPair();
+    pulse = { origin: index, start: time, speed: rand(0.007, 0.014) };
+    nextPulse = time + rand(4200, 6600);
+  }
+
+  ctx.clearRect(0, 0, width, height);
+  const theme = palettes[paletteIndex];
+  for (const [x, y, radius, alpha] of stars) {
+    ctx.fillStyle = rgb(theme.pulse, alpha);
+    ctx.beginPath();
+    ctx.arc(x * width, y * height, radius, 0, TAU);
+    ctx.fill();
+  }
+
+  const project = camera();
+  const layers = [];
+  const projected = strands.map(strand => strand.map(project));
+  for (let strand = 0; strand < 2; strand++) {
+    for (let index = 1; index <= SEGMENT_COUNT; index++) {
+      const a = projected[strand][index - 1], b = projected[strand][index];
+      layers.push({ a, b, depth: (a.depth + b.depth) / 2, color: theme.strand[strand],
+        thickness: 0.069, glow: waveAt((index - 0.5) / STRIDE, time), rail: true });
+    }
+  }
+  targetPoints = pairs.map(pair => {
+    const { index, sample, kind } = pair;
+    const a = projected[0][sample], b = projected[1][sample];
+    const glow = waveAt(index, time);
+    const active = index === selected || index === hovered;
+    const color = pairColors[kind];
+    const portions = 10;
+    let last = a;
+    for (let k = 1; k <= portions; k++) {
+      const t = k / portions;
+      const next = {
+        x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t,
+        depth: a.depth + (b.depth - a.depth) * t,
+        scale: a.scale + (b.scale - a.scale) * t
+      };
+      layers.push({ a: last, b: next, depth: (last.depth + next.depth) / 2, color,
+        thickness: active ? 0.052 : 0.030, glow: active ? Math.max(glow, 0.34) : glow });
+      last = next;
+    }
+    layers.push({ a, depth: a.depth + 0.01, color, glow, active }, { a: b, depth: b.depth + 0.01, color, glow, active });
+    return { a, b, index };
+  });
+  layers.sort((a, b) => a.depth - b.depth);
+  for (const layer of layers) {
+    if (layer.b) segment(layer.a, layer.b, layer.color, layer.thickness, layer.glow, theme.pulse, layer.rail);
+    else node(layer.a, layer.color, layer.glow, theme.pulse, layer.active);
+  }
+  if (autoRotate || !reducedMotion) requestDraw();
+  else lastTime = 0;
+}
+
+function pairAt(x, y) {
+  let hit = -1;
+  let closest = 13;
+  let depth = -Infinity;
+  for (const { a, b, index } of targetPoints) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared ? clamp(((x - a.x) * dx + (y - a.y) * dy) / lengthSquared, 0, 1) : 0;
+    const distance = Math.hypot(x - a.x - t * dx, y - a.y - t * dy);
+    const candidateDepth = a.depth + t * (b.depth - a.depth);
+    if (distance < closest - 0.5 || (hit !== -1 && Math.abs(distance - closest) <= 0.5 && candidateDepth > depth)) {
+      hit = index;
+      closest = distance;
+      depth = candidateDepth;
+    }
+  }
+  return hit;
+}
+
+function setRotation(value) {
+  autoRotate = value;
+  spin.setAttribute('aria-pressed', String(value));
+  requestDraw();
+}
+
+function setZoom(value) {
+  zoom = clamp(value, 0.65, 2.9);
+  requestDraw();
+}
+
+function localPair(event) {
+  const bounds = canvas.getBoundingClientRect();
+  return pairAt(event.clientX - bounds.left, event.clientY - bounds.top);
+}
+
+function bindControls() {
+  spin.setAttribute('aria-pressed', String(autoRotate));
+  spin.addEventListener('click', () => setRotation(!autoRotate));
+  random.addEventListener('click', () => launch(randomPair(), true));
+  reset.addEventListener('click', () => {
+    Object.assign(view, defaultView);
+    setZoom(1);
+  });
+  palette.addEventListener('click', () => {
+    paletteIndex = (paletteIndex + 1) % palettes.length;
+    stage.style.background = 'radial-gradient(ellipse at 49% 48%,' + palettes[paletteIndex].stage
+      + ' 0,#11273a 42%,#0b1827 74%,#091320 100%)';
+    requestDraw();
+  });
+  canvas.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    if (pointers.size === 0) hadGesture = false;
+    else hadGesture = true;
+    canvas.setPointerCapture(event.pointerId);
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY });
+  });
+  canvas.addEventListener('pointermove', event => {
+    const pointer = pointers.get(event.pointerId);
+    if (!pointer) {
+      hovered = event.pointerType === 'mouse' ? localPair(event) : -1;
+      canvas.style.cursor = hovered === -1 ? '' : 'pointer';
+      requestDraw();
+      return;
+    }
+    const { clientX: x, clientY: y } = event;
+    const dx = x - pointer.x, dy = y - pointer.y;
+    if (pointers.size === 1 && (hadGesture || Math.hypot(x - pointer.startX, y - pointer.startY) > 5)) {
+      hadGesture = true;
+      view.yaw += dx * 0.012;
+      view.pitch = clamp(view.pitch + dy * 0.012, -1.5, 1.5);
+      setRotation(false);
+    }
+    if (pointers.size === 2) {
+      const other = [...pointers].find(([id]) => id !== event.pointerId)[1];
+      const oldDistance = Math.hypot(pointer.x - other.x, pointer.y - other.y);
+      if (oldDistance > 0) setZoom(zoom * Math.hypot(x - other.x, y - other.y) / oldDistance);
+    }
+    pointer.x = x;
+    pointer.y = y;
+  });
+  canvas.addEventListener('pointerup', event => {
+    if (pointers.has(event.pointerId) && !hadGesture) {
+      const index = localPair(event);
+      if (index !== -1) launch(index, true);
+    }
+    pointers.delete(event.pointerId);
+  });
+  for (const type of ['pointercancel', 'lostpointercapture']) {
+    canvas.addEventListener(type, event => pointers.delete(event.pointerId));
+  }
+  canvas.addEventListener('pointerleave', () => {
+    hovered = -1;
+    canvas.style.cursor = '';
+    requestDraw();
+  });
+  canvas.addEventListener('wheel', event => {
+    event.preventDefault();
+    setZoom(zoom * Math.exp(-0.0014 * event.deltaY));
+  }, { passive: false });
+  canvas.addEventListener('keydown', event => {
+    switch (event.key) {
+      case 'ArrowLeft': view.yaw -= 0.17; break;
+      case 'ArrowRight': view.yaw += 0.17; break;
+      case 'ArrowUp': view.pitch = clamp(view.pitch - 0.13, -1.5, 1.5); break;
+      case 'ArrowDown': view.pitch = clamp(view.pitch + 0.13, -1.5, 1.5); break;
+      case '+': case '=': setZoom(zoom * 1.12); break;
+      case '-': setZoom(zoom / 1.12); break;
+      case ' ': launch(randomPair(), true); event.preventDefault(); return;
+      default: return;
+    }
+    event.preventDefault();
+    setRotation(false);
+  });
+}
+
+if (ctx) {
+  bindControls();
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+  if (!reducedMotion) launch(randomPair(), false);
+} else {
+  document.getElementById('empty').hidden = false;
+  for (const button of [reset, spin, random, palette]) button.disabled = true;
+}
+</script>
+</body>
+</html>
