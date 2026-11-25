@@ -262,14 +262,42 @@ function makeGalaxy() {
   return layer;
 }
 
-function makeNebula() {
+const nebulaFields = [
+  { seed: 516167, style: "ribbon", tones: [[23, 102, 194], [205, 69, 138]] },
+  { seed: 17533, style: "shell", tones: [[61, 104, 200], [49, 218, 192]] },
+  { seed: 291733, style: "pillars", tones: [[112, 29, 83], [237, 109, 42]] },
+  { seed: 48103, style: "filaments", tones: [[86, 54, 201], [188, 119, 222]] },
+  { seed: 74439, style: "currents", tones: [[24, 117, 184], [104, 207, 204]] },
+  { seed: 965113, style: "embers", tones: [[120, 29, 51], [225, 132, 48]] }
+];
+const nebulaRoute = [[0, 0], [1.1, 1], [2.18, 2], [3.3, 3], [4.53, 4], [5.71, 5], [6.13, 1]];
+const nebulaTextures = new Map();
+
+function nebulaTexture(index) {
+  if (!nebulaTextures.has(index)) nebulaTextures.set(index, makeNebula(nebulaFields[index]));
+  return nebulaTextures.get(index);
+}
+function nebulaAt(progress) {
+  const [end, lastIndex] = nebulaRoute.at(-1);
+  if (progress >= end) {
+    const sector = (progress - end) / 1.4;
+    const from = (lastIndex + Math.floor(sector)) % nebulaFields.length;
+    return { from, to: (from + 1) % nebulaFields.length, blend: smooth(sector % 1) };
+  }
+  const next = nebulaRoute.findIndex(([at]) => at > progress);
+  const [start, from] = nebulaRoute[next - 1];
+  const [finish, to] = nebulaRoute[next];
+  return { from, to, blend: smooth((progress - start) / (finish - start)) };
+}
+
+function makeNebula({ seed, style, tones }) {
   const layer = document.createElement("canvas");
-  const w = 640, h = 384;
+  const w = 576, h = 354;
   layer.width = w;
   layer.height = h;
   const painter = layer.getContext("2d");
   const image = painter.createImageData(w, h);
-  const random = randomGenerator(516167);
+  const random = randomGenerator(seed);
   const grid = Float32Array.from({ length: 4096 }, random);
   function noise(x, y) {
     const a = Math.floor(x), b = Math.floor(y);
@@ -290,35 +318,61 @@ function makeNebula() {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const u = x / w, v = y / h;
-      const band = v - (.76 - u * .5 + .085 * Math.sin(u * 11));
-      const falloff = Math.exp(-(band ** 2) * 19) * smooth(u * 4) * smooth((1 - u) * 4);
-      const detail = clouds(u * 8 + 2, v * 10 + noise(u * 7, v * 5) * 1.7);
-      const ridge = Math.max(0, detail - .28) ** 1.45 * falloff;
-      const warm = smooth((noise(u * 4 + 12, v * 3) - .25) * 2.2);
+      const warp = noise(u * 5 + 11, v * 5 + 17) - .5;
+      const wave = u - .5;
+      const plume = v - .51;
+      const detail = clouds(u * 9 + warp * 1.8 + 2, v * 11 + warp * 1.5);
+      const feather = smooth(u * 5) * smooth((1 - u) * 5)
+        * smooth(v * 6) * smooth((1 - v) * 6);
+      let body;
+      if (style === "shell") {
+        const shell = Math.hypot(wave * 1.24, plume * 1.28) - .31 + warp * .12;
+        body = Math.exp(-(shell ** 2) * 105) * (.56 + detail * .85);
+      } else if (style === "pillars") {
+        const pillar = Math.sin(u * 41 + v * 6 + warp * 3.2);
+        body = Math.exp(-((plume + wave * .35) ** 2) * 12)
+          * (.4 + .6 * smooth((pillar + .46) * .62));
+      } else if (style === "filaments") {
+        const fork = Math.abs(plume + wave * .63 + warp * .21) - .08 - u * .14;
+        body = Math.exp(-(fork ** 2) * 88) * (.67 + detail * .66);
+      } else if (style === "currents") {
+        const curve = plume - .15 * Math.sin(u * 7) + warp * .13;
+        body = Math.exp(-(curve ** 2) * 32) + .33 * Math.exp(-((curve + .24) ** 2) * 52);
+      } else if (style === "embers") {
+        const lobes = Math.abs(wave + plume * .61) - .20;
+        body = Math.exp(-(lobes ** 2) * 39 - (plume ** 2) * 8) * (.62 + detail);
+      } else {
+        const ribbon = v - (.76 - u * .5 + .085 * Math.sin(u * 11));
+        body = Math.exp(-(ribbon ** 2) * 18);
+      }
+      const ridge = Math.max(0, detail - .25) ** 1.39 * body * feather;
+      const warm = smooth((noise(u * 4 + 12, v * 3 + 5) - .21) * 2.34);
       const i = (y * w + x) * 4;
-      image.data[i] = mix(23, 205, warm) + ridge * 56;
-      image.data[i + 1] = mix(102, 69, warm) + ridge * 65;
-      image.data[i + 2] = mix(194, 138, warm) + ridge * 80;
-      image.data[i + 3] = ridge * 735;
+      image.data[i] = mix(tones[0][0], tones[1][0], warm) + ridge * 75;
+      image.data[i + 1] = mix(tones[0][1], tones[1][1], warm) + ridge * 60;
+      image.data[i + 2] = mix(tones[0][2], tones[1][2], warm) + ridge * 75;
+      image.data[i + 3] = ridge * 850;
     }
   }
   painter.putImageData(image, 0, 0);
   painter.globalCompositeOperation = "screen";
-  for (let i = 0; i < 1500; i++) {
-    const x = random(), offset = (random() + random() - 1) * .5;
-    const y = .76 - x * .5 + .085 * Math.sin(x * 11) + offset;
-    painter.fillStyle = `rgba(193,209,255,${.06 + random() ** 5 * .49})`;
+  for (let i = 0; i < 560; i++) {
+    const x = random(), y = random();
+    const energy = image.data[(Math.floor(y * h) * w + Math.floor(x * w)) * 4 + 3] / 255;
+    painter.fillStyle = `rgba(207,223,255,${energy * (.15 + random() ** 4 * .65)})`;
     const dot = .36 + random() ** 6;
     painter.fillRect(x * w, y * h, dot, dot);
   }
   return layer;
 }
 
-const blackHoleRoute = { entry: 4.53, horizon: 5.71, exit: 6.13 };
+const blackHoleRoute = { entry: 4.53, horizon: 5.71, exit: 6.13, crossing: 17, duration: 20 };
 const blackHolePhases = [
-  { name: "블랙홀 접근", description: "강착 원반의 뒷면과 별빛이 중력 렌즈를 따라 휘어 보입니다." },
-  { name: "블랙홀 낙하", description: "그림자가 시야를 채우고 빛이 가장자리로 밀려납니다." },
-  { name: "사건의 지평선", description: "지평선 통과는 암전으로 연출했습니다." }
+  { at: 0, name: "블랙홀 접근", description: "별빛이 휘고, 강착 원반의 뒤쪽이 검은 그림자 위로 드러납니다." },
+  { at: 5, name: "강착 원반 옆을 비행", description: "카메라가 원반 옆을 돌아갑니다. 다가오는 쪽 가스가 더 밝게 빛납니다." },
+  { at: 10, name: "블랙홀 낙하", description: "시야를 채운 그림자 가장자리로 별빛과 원반이 휘어집니다." },
+  { at: 17, name: "사건의 지평선", description: "지평선 통과는 암전으로 연출했습니다." },
+  { at: 18.4, name: "깊은 우주로 복귀", description: "암전이 걷히고 다음 성운이 나타납니다." }
 ];
 const blackHoleSetting = "jigu-neomeo.black-hole";
 
@@ -330,15 +384,27 @@ function readBlackHoleSetting() {
   }
 }
 
+function blackHoleTime(progress) {
+  const { entry, horizon, exit, crossing, duration } = blackHoleRoute;
+  if (progress <= horizon) return clamp((progress - entry) / (horizon - entry)) * crossing;
+  return crossing + clamp((progress - horizon) / (exit - horizon)) * (duration - crossing);
+}
+function blackHolePosition(seconds) {
+  const { entry, horizon, exit, crossing, duration } = blackHoleRoute;
+  if (seconds <= crossing) return mix(entry, horizon, seconds / crossing);
+  return seconds >= duration ? exit : mix(horizon, exit, (seconds - crossing) / (duration - crossing));
+}
 function currentBlackHole(progress) {
-  const { entry, horizon, exit } = blackHoleRoute;
+  const { entry, exit, crossing, duration } = blackHoleRoute;
   if (!blackHoleEnabled || progress < entry || progress >= exit) return null;
-  const fall = clamp((progress - entry) / (horizon - entry));
-  const beyond = Math.max(0, progress - horizon);
+  const seconds = blackHoleTime(progress);
+  const phase = blackHolePhases.findLastIndex(({ at }) => seconds >= at);
   return {
-    fall,
-    phase: beyond > 0 ? 2 : fall > .55 ? 1 : 0,
-    opacity: smooth(fall / .17) * (1 - smooth((beyond - .12) / .30))
+    seconds,
+    phase,
+    fall: clamp(seconds / crossing),
+    crossed: seconds >= crossing,
+    opacity: smooth(seconds / 1.9) * (1 - smooth((seconds - 18.4) / (duration - 18.4)))
   };
 }
 
@@ -346,7 +412,9 @@ const blackHoleFragment = `
 precision highp float;
 uniform vec2 viewport;
 uniform float fall;
-uniform sampler2D nebulaTexture;
+uniform sampler2D nearNebula;
+uniform sampler2D farNebula;
+uniform float nebulaBlend;
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -361,7 +429,9 @@ float noise(vec2 p) {
 vec3 sky(vec3 ray) {
   vec2 uv = vec2(0.5 + atan(ray.x, -ray.z) / 6.2831853,
                  0.5 - asin(clamp(ray.y, -1.0, 1.0)) / 3.1415926);
-  vec4 gas = texture2D(nebulaTexture, uv);
+  vec4 nearGas = texture2D(nearNebula, uv);
+  vec4 farGas = texture2D(farNebula, uv);
+  vec3 gas = mix(nearGas.rgb * nearGas.a, farGas.rgb * farGas.a, nebulaBlend);
   vec2 grid = uv * vec2(818.0, 396.0);
   vec2 cell = floor(grid);
   vec2 offset = vec2(hash(cell + 32.0), hash(cell - 13.0)) * .62 + .19;
@@ -370,7 +440,7 @@ vec3 sky(vec3 ray) {
   vec2 bigGrid = uv * vec2(135.0, 64.0);
   float bright = pow(hash(floor(bigGrid) + 74.0), 26.0);
   float halo = exp(-length(fract(bigGrid) - .5) * 26.0) * bright;
-  return vec3(.0015, .002, .006) + gas.rgb * gas.a * 1.15
+  return vec3(.0015, .002, .006) + gas * 1.57
        + vec3(.71, .80, 1.0) * (star + halo * .6);
 }
 vec4 accretion(vec3 p, vec3 ray) {
@@ -392,10 +462,11 @@ vec4 accretion(vec3 p, vec3 ray) {
 }
 void main() {
   vec2 screen = (gl_FragCoord.xy * 2.0 - viewport) / viewport.y;
-  float distance = mix(22.0, 1.025, pow(fall, 1.26));
-  float bearing = mix(.11, -.36, fall);
-  float elevation = mix(.23, .12, fall);
-  vec3 p = distance * vec3(sin(bearing) * cos(elevation), sin(elevation),
+  float cameraRadius = mix(26.0, 1.025, pow(fall, 1.36));
+  float sweep = smoothstep(.17, .62, fall);
+  float bearing = mix(.41, -.66, sweep);
+  float elevation = .125 + sin(sweep * 3.1415926) * .21 + .08 * (1.0 - sweep);
+  vec3 p = cameraRadius * vec3(sin(bearing) * cos(elevation), sin(elevation),
                            cos(bearing) * cos(elevation));
   vec3 forward = normalize(-p);
   vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
@@ -434,7 +505,7 @@ void main() {
 }
 `;
 
-function createBlackHoleRenderer(texture) {
+function createBlackHoleRenderer() {
   const layer = document.createElement("canvas");
   const gl = layer.getContext("webgl", { alpha: false, antialias: false, depth: false, preserveDrawingBuffer: true });
   if (!gl) return null;
@@ -467,13 +538,19 @@ function createBlackHoleRenderer(texture) {
   const attribute = gl.getAttribLocation(program, "vertex");
   gl.enableVertexAttribArray(attribute);
   gl.vertexAttribPointer(attribute, 2, gl.FLOAT, false, 0, 0);
-  gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture);
-  gl.uniform1i(gl.getUniformLocation(program, "nebulaTexture"), 0);
+  function attachNebula(unit, uniform, index) {
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, nebulaTexture(index));
+    gl.uniform1i(gl.getUniformLocation(program, uniform), unit);
+  }
+  attachNebula(0, "nearNebula", 4);
+  attachNebula(1, "farNebula", 5);
+  const blend = gl.getUniformLocation(program, "nebulaBlend");
   const viewport = gl.getUniformLocation(program, "viewport");
   const progress = gl.getUniformLocation(program, "fall");
   let lastFall = -1;
@@ -490,6 +567,7 @@ function createBlackHoleRenderer(texture) {
     }
     if (lastFall !== fall) {
       gl.uniform1f(progress, fall);
+      gl.uniform1f(blend, smooth(fall));
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       lastFall = fall;
     }
@@ -515,9 +593,12 @@ const diskDust = Array.from({ length: 420 }, () => ({
   light: .04 + lensRandom() ** 2 * .69
 }));
 function paintBlackHoleFallback(fall, opacity) {
-  const radius = Math.min(width, height) * mix(.155, 1.10, (fall ** 2.7));
-  context.translate(width * (.51 + fall * .037), height * .50);
-  context.rotate(-.16 - fall * .11);
+  const sweep = smooth((fall - .17) / .45);
+  const radius = Math.min(width, height) * mix(.115, 1.18, fall ** 2.45);
+  const tilt = .18 + .17 * Math.sin(sweep * Math.PI);
+  const cameraOffset = .081 * Math.sin(sweep * Math.PI);
+  context.translate(width * (.495 + cameraOffset), height * (.50 - cameraOffset * .28));
+  context.rotate(mix(-.16, .21, sweep));
   glow(context, 0, 0, radius * 2.95, [[0, "#f9a2687a"], [.42, "#d8663280"], [.61, "#a03e3958"], [1, "#89317d00"]]);
 
   // Stretch nearby background points tangentially around the shadow.
@@ -538,7 +619,7 @@ function paintBlackHoleFallback(fall, opacity) {
   for (let ring = 0; ring < 18; ring++) {
     const a = radius * (1.005 + ring * .10);
     context.globalAlpha = opacity * (1 - ring * .050);
-    ellipse(0, 0, a, a * .28, 0, TAU, disk, radius * .033);
+    ellipse(0, 0, a, a * tilt, 0, TAU, disk, radius * .033);
   }
   context.globalAlpha = smooth(opacity);
   context.fillStyle = "#010106";
@@ -557,12 +638,12 @@ function paintBlackHoleFallback(fall, opacity) {
   for (let ring = 0; ring < 17; ring++) {
     const a = radius * (1.002 + ring * .105);
     context.globalAlpha = opacity * (1 - ring * .054);
-    ellipse(0, 0, a, a * .28, 0, Math.PI, disk, radius * .036);
+    ellipse(0, 0, a, a * tilt, 0, Math.PI, disk, radius * .036);
   }
   for (const speck of diskDust) {
     const angle = (speck.angle + fall * (.27 / speck.radius)) % TAU;
     const x = Math.cos(angle) * radius * speck.radius;
-    const y = Math.sin(angle) * radius * speck.radius * .28;
+    const y = Math.sin(angle) * radius * speck.radius * tilt;
     if (y < 0 && x * x + y * y < radius * radius) continue;
     context.globalAlpha = opacity * speck.light * (.65 + x / (radius * 7));
     context.fillStyle = "#ffe4ab";
@@ -572,12 +653,12 @@ function paintBlackHoleFallback(fall, opacity) {
 let blackHoleRenderer;
 function drawBlackHole(scene) {
   context.save();
-  if (scene.phase === 2) {
+  if (scene.crossed) {
     context.globalAlpha = scene.opacity;
     context.fillStyle = "#010106";
     context.fillRect(0, 0, width, height);
   } else {
-    if (blackHoleRenderer === undefined) blackHoleRenderer = createBlackHoleRenderer(nebula);
+    if (blackHoleRenderer === undefined) blackHoleRenderer = createBlackHoleRenderer();
     const image = blackHoleRenderer?.(width, height, scene.fall);
     context.globalAlpha = scene.opacity;
     if (image) context.drawImage(image, 0, 0, width, height);
@@ -589,7 +670,6 @@ function drawBlackHole(scene) {
   context.restore();
 }
 
-const nebula = makeNebula();
 const earth = makeGlobe(800);
 const moon = makeGlobe(144, true);
 const spiral = makeGalaxy();
@@ -615,7 +695,7 @@ let width = 1, height = 1;
 let position = 0, target = 0, speed = 0, starTravel = 0;
 let flying = false, started = false, jump = false, lastFrame = 0, frameRequest = 0;
 let blackHoleEnabled = readBlackHoleSetting();
-let displayedStage = -1, displayedBlackHolePhase = -1, displayedSegment = -1, lastDistanceUpdate = -1;
+let displayedStage = -1, displayedBlackHolePhase = -1, lastDistanceUpdate = -1;
 let touchY = null;
 let cachedFieldNumber = -1, cachedField = [];
 const flightButton = document.querySelector("#flight");
@@ -765,14 +845,23 @@ function draw(motion, blackHole) {
   context.fillRect(0, 0, width, height);
   const mobile = width < 650;
   const drift = reducedMotion.matches ? 0 : Math.sin(position * .42) * width * .08;
-  context.globalAlpha = mix(.46, .94, smooth(position / 2.8));
-  context.drawImage(nebula, -width * .14 + drift, -height * .14, width * 1.28, height * 1.29);
+  const field = nebulaAt(position);
+  const brightness = mix(.58, 1, smooth(position / 2.8));
   context.save();
-  context.translate(width * .55, height * .45);
-  context.rotate(mobile ? .64 : .38);
-  context.scale(-1, 1);
-  context.globalAlpha *= .37;
-  context.drawImage(nebula, -width * .66, -height * .66, width * 1.14, height * 1.16);
+  context.globalCompositeOperation = "screen";
+  for (const [index, weight] of [[field.from, 1 - field.blend], [field.to, field.blend]]) {
+    if (weight <= .001) continue;
+    context.globalAlpha = brightness * weight;
+    const layer = nebulaTexture(index);
+    context.drawImage(layer, -width * .16 + drift, -height * .14, width * 1.31, height * 1.29);
+    context.save();
+    context.translate(width * .55, height * .47);
+    context.rotate(mobile ? .65 : .40);
+    context.scale(-1, 1);
+    context.globalAlpha *= .32;
+    context.drawImage(layer, -width * .66, -height * .66, width * 1.14, height * 1.16);
+    context.restore();
+  }
   context.restore();
   context.globalAlpha = 1;
   drawStars(motion);
@@ -801,7 +890,7 @@ function formatDistance(progress) {
 function updateReadouts(time, blackHole) {
   const stage = Math.min(4, Math.floor(position + .42));
   const segment = Math.floor(Math.max(0, position - 4));
-  const phase = blackHole && blackHole.opacity > .25 ? blackHole.phase : -1;
+  const phase = blackHole?.phase ?? -1;
   if (stage !== displayedStage || phase !== displayedBlackHolePhase) {
     displayedStage = stage;
     displayedBlackHolePhase = phase;
@@ -814,11 +903,9 @@ function updateReadouts(time, blackHole) {
       else stop.removeAttribute("aria-current");
     });
   }
-  if (segment !== displayedSegment || sectionNumber.dataset.scene !== `${stage}/${phase}`) {
-    displayedSegment = segment;
-    sectionNumber.dataset.scene = `${stage}/${phase}`;
-    sectionNumber.textContent = stage === 4 && phase < 0 && segment > 0 ? `구역 ${segment + 1}` : "";
-  }
+  const marker = blackHole ? `${Math.floor(blackHole.seconds)} / ${blackHoleRoute.duration}초`
+    : stage === 4 && segment > 0 ? `구역 ${segment + 1}` : "";
+  if (sectionNumber.textContent !== marker) sectionNumber.textContent = marker;
   if (time - lastDistanceUpdate > 65 || Math.abs(position - target) < .001 && !flying) {
     lastDistanceUpdate = time;
     distance.value = formatDistance(position);
@@ -835,11 +922,17 @@ function frame(time) {
   if (flying) {
     const nearest = Math.round(position);
     const arrival = nearest <= 3 ? Math.exp(-((position - nearest) ** 2) / .025) : 0;
-    const blackHole = currentBlackHole(position);
-    const diveSlowdown = blackHole ? .67 * blackHole.opacity : 0;
-    const cruise = (1 - Math.max(.67 * arrival, diveSlowdown)) * (reducedMotion.matches ? .5 : 1);
-    speed = mix(speed, cruise, 1 - Math.exp(-dt * 3.5));
-    position += speed * dt;
+    const inDive = currentBlackHole(position);
+    if (inDive) {
+      speed = mix(speed, .11, 1 - Math.exp(-dt * 5));
+      position = blackHolePosition(inDive.seconds + elapsed);
+    } else {
+      const cruise = (1 - .67 * arrival) * (reducedMotion.matches ? .5 : 1);
+      speed = mix(speed, cruise, 1 - Math.exp(-dt * 3.5));
+      const next = position + speed * dt;
+      position = blackHoleEnabled && position < blackHoleRoute.entry && next >= blackHoleRoute.entry
+        ? blackHoleRoute.entry : next;
+    }
     target = position;
     if (!reducedMotion.matches) starTravel += speed * dt * .54;
   } else if (Math.abs(target - position) > .001) {
