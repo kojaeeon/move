@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f4f1e9">
+<title>파이의 궤적 · π 숫자 시각화</title>
+<style>
+  :root {
+    color-scheme: light;
+    font-family: system-ui, -apple-system, "Malgun Gothic", sans-serif;
+    --paper: #f4f1e9;
+    --ink: #232137;
+    --muted: #645f6d;
+    --rule: #dad3cd;
+    --violet: #58449c;
+    --mono: ui-monospace, "Cascadia Code", "D2Coding", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); }
+  button, select, input { font: inherit; }
+  button, select { cursor: pointer; }
+  :focus-visible { outline: 2px solid #7552c2; outline-offset: 4px; }
+  .page { width: min(1160px, calc(100% - 80px)); margin: 0 auto; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 23px 0 20px; border-bottom: 1px solid var(--rule); gap: 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; font-size: 14px; }
+  .symbol {
+    display: grid; place-items: center; width: 34px; height: 34px;
+    border: 1px solid #c8bed6; border-radius: 50%; color: var(--violet);
+    font: italic 24px Georgia, serif;
+  }
+  .digits { font: 13px var(--mono); letter-spacing: .06em; color: var(--violet); white-space: nowrap; }
+  main {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(255px, 31%);
+    align-items: start; gap: clamp(30px, 5vw, 76px);
+    padding: clamp(23px, 4vw, 50px) 0 34px;
+  }
+  figure { margin: 0; min-width: 0; }
+  .art {
+    position: relative; isolation: isolate; overflow: hidden; aspect-ratio: 1.07;
+    border: 1px solid #35314a; border-radius: 17px;
+    background: radial-gradient(ellipse at center, #161626, #0d0c18 67%);
+  }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  figcaption { margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+  .panel { padding-top: clamp(0px, 1.4vw, 22px); min-width: 0; }
+  h1 { margin: 0; font-size: clamp(36px, 4vw, 56px); letter-spacing: -.08em; font-weight: 730; line-height: 1.08; word-break: keep-all; }
+  .intro { margin: 14px 0 26px; color: var(--muted); font-size: 15px; line-height: 1.6; word-break: keep-all; }
+  .readouts {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin: 0; padding: 15px 0 16px; border-block: 1px solid var(--rule);
+  }
+  dt { color: var(--muted); font-size: 12px; }
+  dd { margin: 6px 0 0; font: 650 clamp(16px, 2.3vw, 24px) var(--mono); letter-spacing: -.07em; }
+  #pair { color: var(--violet); }
+  progress {
+    display: block; width: 100%; margin-top: 14px; height: 5px;
+    appearance: none; border: 0; border-radius: 8px; overflow: hidden; background: #e3dce6;
+    color: var(--violet);
+  }
+  progress::-webkit-progress-bar { background: #e3dce6; }
+  progress::-webkit-progress-value { background: var(--violet); }
+  progress::-moz-progress-bar { background: var(--violet); }
+  .settings { display: grid; gap: 15px; margin-top: 22px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+  .row label { font-weight: 620; }
+  select {
+    color: var(--ink); background: #faf8f2; border: 1px solid var(--rule); border-radius: 7px;
+    min-height: 38px; padding: 4px 11px;
+  }
+  #rate-value { color: var(--violet); font: 13px var(--mono); }
+  #rate { width: 100%; margin: 8px 0 0; height: 24px; accent-color: var(--violet); cursor: pointer; }
+  .actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  button {
+    min-height: 44px; border: 1px solid var(--rule); border-radius: 7px; padding: 0 12px;
+    color: var(--ink); background: #faf8f2; font-size: 13px; font-weight: 650; white-space: nowrap;
+  }
+  button:hover { background: #eae4ef; }
+  #play { background: #342658; border-color: #342658; color: #fff; min-width: 84px; }
+  #play:hover { background: #514176; }
+  #step:disabled { cursor: default; opacity: .46; }
+  .shortcut { color: var(--muted); font-size: 12px; margin: 15px 0 0; }
+  kbd { font-family: var(--mono); padding: 2px 4px; border: 1px solid var(--rule); border-radius: 4px; }
+  @media (max-width: 740px) {
+    .page { width: min(540px, calc(100% - 32px)); }
+    header { padding: 13px 0; }
+    main { grid-template-columns: minmax(0, 1fr); gap: 21px; padding-top: 16px; }
+    .art { aspect-ratio: 1.08; border-radius: 11px; }
+    h1 { font-size: 32px; }
+    .intro { margin: 8px 0 15px; }
+    .readouts { padding: 11px 0; }
+    .settings { margin-top: 15px; }
+    .actions { flex-wrap: wrap; }
+  }
+  @media (hover: none) { .shortcut { display: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="brand"><span class="symbol" aria-hidden="true">π</span>파이 시각화</div>
+    <div class="digits">3.14159265358979…</div>
+  </header>
+  <main>
+    <figure>
+      <div class="art">
+        <canvas id="network" role="img" aria-label="원 둘레의 0부터 9까지를 따라 파이의 연속된 숫자를 연결하는 무지개색 원형 그림"></canvas>
+      </div>
+      <figcaption>선의 색은 출발 숫자에 해당합니다. 같은 숫자도 등장할 때마다 구간 안에서 다른 점을 사용합니다.</figcaption>
+    </figure>
+    <section class="panel" aria-labelledby="title">
+      <h1 id="title">파이의 궤적</h1>
+      <p class="intro">원 둘레를 0부터 9까지 나누고 π의 숫자를 차례로 잇습니다. 첫 선은 3에서 1로 이어집니다.</p>
+      <dl class="readouts">
+        <div><dt>현재 연결</dt><dd id="pair">—</dd></div>
+        <div><dt>연결한 선</dt><dd id="count">0</dd></div>
+      </dl>
+      <progress id="progress" max="1500" value="0" aria-label="그리기 진행률"></progress>
+      <div class="settings">
+        <div class="row">
+          <label for="limit">소수 자릿수</label>
+          <select id="limit">
+            <option value="100">100자리</option>
+            <option value="500">500자리</option>
+            <option value="1500" selected>1,500자리</option>
+            <option value="5000">5,000자리</option>
+          </select>
+        </div>
+        <div>
+          <div class="row"><label for="rate">최대 그리기 속도</label><output id="rate-value" for="rate">초당 120선</output></div>
+          <input id="rate" type="range" min="5" max="360" step="5" value="120">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" id="play" aria-keyshortcuts="Space">재생</button>
+        <button type="button" id="reset">처음으로</button>
+        <button type="button" id="step">한 선씩</button>
+      </div>
+      <p class="shortcut"><kbd>Space</kbd> 재생·정지</p>
+    </section>
+  </main>
+</div>
+<script>
+"use strict";
+
+// The integer digit followed by 5,000 decimal digits, embedded for offline use.
+const digits = `
+3141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067
+9821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819
+6442881097566593344612847564823378678316527120190914564856692346034861045432664821339360726024914127
+3724587006606315588174881520920962829254091715364367892590360011330530548820466521384146951941511609
+4330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491
+2983367336244065664308602139494639522473719070217986094370277053921717629317675238467481846766940513
+2000568127145263560827785771342757789609173637178721468440901224953430146549585371050792279689258923
+5420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185
+9502445945534690830264252230825334468503526193118817101000313783875288658753320838142061717766914730
+3598253490428755468731159562863882353787593751957781857780532171226806613001927876611195909216420198
+9380952572010654858632788659361533818279682303019520353018529689957736225994138912497217752834791315
+1557485724245415069595082953311686172785588907509838175463746493931925506040092770167113900984882401
+2858361603563707660104710181942955596198946767837449448255379774726847104047534646208046684259069491
+2933136770289891521047521620569660240580381501935112533824300355876402474964732639141992726042699227
+9678235478163600934172164121992458631503028618297455570674983850549458858692699569092721079750930295
+5321165344987202755960236480665499119881834797753566369807426542527862551818417574672890977772793800
+0816470600161452491921732172147723501414419735685481613611573525521334757418494684385233239073941433
+3454776241686251898356948556209921922218427255025425688767179049460165346680498862723279178608578438
+3827967976681454100953883786360950680064225125205117392984896084128488626945604241965285022210661186
+3067442786220391949450471237137869609563643719172874677646575739624138908658326459958133904780275900
+9946576407895126946839835259570982582262052248940772671947826848260147699090264013639443745530506820
+3496252451749399651431429809190659250937221696461515709858387410597885959772975498930161753928468138
+2686838689427741559918559252459539594310499725246808459872736446958486538367362226260991246080512438
+8439045124413654976278079771569143599770012961608944169486855584840635342207222582848864815845602850
+6016842739452267467678895252138522549954666727823986456596116354886230577456498035593634568174324112
+5150760694794510965960940252288797108931456691368672287489405601015033086179286809208747609178249385
+8900971490967598526136554978189312978482168299894872265880485756401427047755513237964145152374623436
+4542858444795265867821051141354735739523113427166102135969536231442952484937187110145765403590279934
+4037420073105785390621983874478084784896833214457138687519435064302184531910484810053706146806749192
+7819119793995206141966342875444064374512371819217999839101591956181467514269123974894090718649423196
+1567945208095146550225231603881930142093762137855956638937787083039069792077346722182562599661501421
+5030680384477345492026054146659252014974428507325186660021324340881907104863317346496514539057962685
+6100550810665879699816357473638405257145910289706414011097120628043903975951567715770042033786993600
+7230558763176359421873125147120532928191826186125867321579198414848829164470609575270695722091756711
+6722910981690915280173506712748583222871835209353965725121083579151369882091444210067510334671103141
+2671113699086585163983150197016515116851714376576183515565088490998985998238734552833163550764791853
+5893226185489632132933089857064204675259070915481416549859461637180270981994309924488957571282890592
+3233260972997120844335732654893823911932597463667305836041428138830320382490375898524374417029132765
+6180937734440307074692112019130203303801976211011004492932151608424448596376698389522868478312355265
+8213144957685726243344189303968642624341077322697802807318915441101044682325271620105265227211166039
+6665573092547110557853763466820653109896526918620564769312570586356620185581007293606598764861179104
+5334885034611365768675324944166803962657978771855608455296541266540853061434443185867697514566140680
+0700237877659134401712749470420562230538994561314071127000407854733269939081454664645880797270826683
+0634328587856983052358089330657574067954571637752542021149557615814002501262285941302164715509792592
+3099079654737612551765675135751782966645477917450112996148903046399471329621073404375189573596145890
+1938971311179042978285647503203198691514028708085990480109412147221317947647772622414254854540332157
+1853061422881375850430633217518297986622371721591607716692547487389866549494501146540628433663937900
+3976926567214638530673609657120918076383271664162748888007869256029022847210403172118608204190004229
+6617119637792133757511495950156604963186294726547364252308177036751590673502350728354056704038674351
+3622224771589150495309844489333096340878076932599397805419341447377441842631298608099888687413260472
+1
+`.replace(/\s/g, "");
+const palette = [12, 34, 57, 112, 157, 179, 205, 235, 272, 320];
+const sector = Math.PI * 2 / 10;
+const points = Array.from(digits, (digit, index) => {
+  // A repeatable offset keeps repeated pairs from drawing over the same chord.
+  const hash = Math.imul(index + 1, 2654435761) >>> 0;
+  const offset = .12 + hash / 4294967296 * .76;
+  const angle = -Math.PI / 2 + (Number(digit) + offset - .5) * sector;
+  return { digit, x: Math.cos(angle), y: Math.sin(angle) };
+});
+const canvas = document.querySelector("#network");
+const context = canvas.getContext("2d");
+const trail = document.createElement("canvas");
+const trailContext = trail.getContext("2d");
+const pair = document.querySelector("#pair");
+const count = document.querySelector("#count");
+const progress = document.querySelector("#progress");
+const limitInput = document.querySelector("#limit");
+const rateInput = document.querySelector("#rate");
+const rateValue = document.querySelector("#rate-value");
+const playButton = document.querySelector("#play");
+const stepButton = document.querySelector("#step");
+const motion = matchMedia("(prefers-reduced-motion: reduce)");
+const format = new Intl.NumberFormat("ko-KR");
+
+let width = 1, height = 1, radius = 1, cx = 0, cy = 0;
+let limit = Number(limitInput.value), drawn = 0, speed = Number(rateInput.value);
+let playing = false, pending = 0, lastFrame = null, animation;
+
+function line(painter, from, to) {
+  painter.beginPath();
+  painter.moveTo(cx + from.x * radius, cy + from.y * radius);
+  painter.lineTo(cx + to.x * radius, cy + to.y * radius);
+  painter.stroke();
+}
+
+function addChord(index) {
+  const from = points[index];
+  const to = points[index + 1];
+  trailContext.lineWidth = index < 20 ? .94 : .67;
+  trailContext.strokeStyle = `hsla(${palette[Number(from.digit)]}, 93%, 65%, ${index < 50 ? .33 : .13})`;
+  line(trailContext, from, to);
+}
+
+function render() {
+  context.clearRect(0, 0, width, height);
+  if (drawn < 45) {
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = `italic ${radius * .60}px Georgia, serif`;
+    context.fillStyle = `rgba(188,167,248,${.29 * (1 - drawn / 45)})`;
+    context.fillText("π", cx, cy - radius * .045);
+  }
+  context.drawImage(trail, 0, 0, width, height);
+  context.textBaseline = "middle";
+  context.textAlign = "center";
+  context.font = "600 13px ui-monospace, monospace";
+  for (const [digit, hue] of palette.entries()) {
+    const center = -Math.PI / 2 + digit * sector;
+    context.strokeStyle = `hsla(${hue}, 86%, 69%, .63)`;
+    context.lineWidth = 1.35;
+    context.beginPath();
+    context.arc(cx, cy, radius, center - sector * .475, center + sector * .475);
+    context.stroke();
+    context.fillStyle = `hsl(${hue}, 90%, 78%)`;
+    context.fillText(String(digit), cx + Math.cos(center) * (radius + 19), cy + Math.sin(center) * (radius + 19));
+  }
+  if (drawn > 0) {
+    const from = points[drawn - 1];
+    const to = points[drawn];
+    const hue = palette[Number(from.digit)];
+    context.strokeStyle = `hsla(${hue}, 96%, 79%, .94)`;
+    context.lineWidth = 1.6;
+    line(context, from, to);
+    context.fillStyle = `hsl(${hue}, 98%, 83%)`;
+    context.beginPath();
+    context.arc(cx + to.x * radius, cy + to.y * radius, 3.1, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
+function resize() {
+  const bounds = canvas.getBoundingClientRect();
+  width = bounds.width;
+  height = bounds.height;
+  if (width === 0 || height === 0) return;
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = trail.width = Math.round(width * ratio);
+  canvas.height = trail.height = Math.round(height * ratio);
+  const scaleX = canvas.width / width;
+  const scaleY = canvas.height / height;
+  context.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+  trailContext.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+  cx = width / 2;
+  cy = height / 2;
+  radius = Math.max(1, Math.min(width, height) / 2 - Math.max(34, Math.min(width, height) * .075));
+  for (let index = 0; index < drawn; index++) addChord(index);
+  render();
+}
+
+function updateReadouts() {
+  pair.textContent = drawn === 0 ? "—" : `${points[drawn - 1].digit} → ${points[drawn].digit}`;
+  count.textContent = format.format(drawn);
+  progress.max = limit;
+  progress.value = drawn;
+  stepButton.disabled = drawn >= limit;
+  playButton.textContent = playing ? "정지" : drawn >= limit ? "다시 재생" : drawn > 0 ? "계속 재생" : "재생";
+}
+
+function setPlaying(active) {
+  playing = active;
+  if (animation !== undefined) cancelAnimationFrame(animation);
+  animation = undefined;
+  lastFrame = null;
+  if (playing) animation = requestAnimationFrame(tick);
+  updateReadouts();
+}
+
+function advance(amount) {
+  const next = Math.min(limit, drawn + amount);
+  while (drawn < next) {
+    addChord(drawn);
+    drawn++;
+  }
+  if (drawn === limit) setPlaying(false);
+  else updateReadouts();
+  render();
+}
+
+function tick(time) {
+  animation = undefined;
+  const elapsed = lastFrame === null ? 0 : Math.min((time - lastFrame) / 1000, .10);
+  lastFrame = time;
+  // Introduce the first few connections, then reach the chosen speed smoothly.
+  const pace = Math.min(speed, drawn < 5 ? 2 : 6 + (drawn - 5) * 3.5);
+  pending += elapsed * pace;
+  const ready = Math.floor(pending);
+  if (ready > 0) {
+    pending -= ready;
+    advance(ready);
+  }
+  if (playing) animation = requestAnimationFrame(tick);
+}
+
+function reset() {
+  drawn = pending = 0;
+  setPlaying(false);
+  trailContext.clearRect(0, 0, width, height);
+  render();
+}
+
+function toggle() {
+  if (playing) {
+    setPlaying(false);
+    return;
+  }
+  if (drawn >= limit) reset();
+  setPlaying(true);
+}
+
+playButton.addEventListener("click", toggle);
+document.querySelector("#reset").addEventListener("click", reset);
+stepButton.addEventListener("click", () => {
+  setPlaying(false);
+  pending = 0;
+  advance(1);
+});
+limitInput.addEventListener("change", () => {
+  limit = Number(limitInput.value);
+  if (drawn > limit) {
+    drawn = limit;
+    resize();
+  }
+  if (drawn === limit) setPlaying(false);
+  else updateReadouts();
+});
+rateInput.addEventListener("input", () => {
+  speed = Number(rateInput.value);
+  rateValue.value = `초당 ${speed}선`;
+});
+window.addEventListener("keydown", (event) => {
+  if (event.code !== "Space" || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.target.closest?.("button, input, select, textarea, a, [contenteditable]")) return;
+  event.preventDefault();
+  if (!event.repeat) toggle();
+});
+document.addEventListener("visibilitychange", () => { lastFrame = null; });
+const observer = new ResizeObserver(resize);
+observer.observe(canvas);
+resize();
+updateReadouts();
+if (!motion.matches) setPlaying(true);
+</script>
+</body>
+</html>
