@@ -11,7 +11,7 @@
     --ink: #f3f7ff;
     --muted: #a6b4cb;
     --blue: #9cdaff;
-    --edge: clamp(22px, 5vw, 78px);
+    --edge: clamp(17px, 3vw, 48px);
     font-family: system-ui, -apple-system, "Malgun Gothic", sans-serif;
   }
   * { box-sizing: border-box; }
@@ -22,14 +22,13 @@
   canvas, .shade { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .shade {
     background:
-      linear-gradient(180deg, #030711b0, transparent 22%, transparent 66%, #030711c9),
-      linear-gradient(90deg, #03071172, transparent 69%);
+      linear-gradient(180deg, #03050ed6, transparent 22%, transparent 75%, #03050ec9);
   }
   header {
     position: absolute; top: max(26px, env(safe-area-inset-top));
     left: var(--edge); right: var(--edge);
     display: flex; align-items: flex-start; justify-content: space-between;
-    padding-bottom: 19px; border-bottom: 1px solid #d7e8ff28;
+    padding-bottom: 13px; border-bottom: 1px solid #d7e8ff28;
   }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 680; font-size: 15px; }
   .brand-mark { width: 22px; height: 22px; border: 1px solid var(--blue); border-radius: 50%; position: relative; }
@@ -37,10 +36,10 @@
   .range { text-align: right; }
   .range span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 3px; }
   .range output { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: clamp(12px, 1.3vw, 16px); }
-  .scene { position: absolute; left: var(--edge); top: 37%; max-width: calc(100% - 2 * var(--edge) - 35px); pointer-events: none; }
-  .scene p { max-width: 32ch; word-break: keep-all; margin: 12px 0 0; color: #c3d1e6; font-size: clamp(13px, 1.3vw, 17px); line-height: 1.65; text-shadow: 0 2px 12px #030711; }
-  #section-number { display: block; color: var(--blue); font: 13px ui-monospace, monospace; letter-spacing: .18em; margin-bottom: 12px; }
-  h1 { margin: 0; font-size: clamp(44px, 7.6vw, 112px); font-weight: 650; line-height: 1.08; letter-spacing: -.075em; text-shadow: 0 4px 30px #030711b0; }
+  .scene { position: absolute; left: var(--edge); top: max(94px, calc(env(safe-area-inset-top) + 76px)); max-width: min(34ch, 64vw); pointer-events: none; }
+  .scene p { word-break: keep-all; margin: 5px 0 0; color: #c3d1e6; font-size: 12px; line-height: 1.5; text-shadow: 0 1px 6px #030711, 0 0 14px #030711; }
+  h1 { display: inline; margin: 0; font-size: 17px; font-weight: 650; line-height: 1.2; text-shadow: 0 1px 10px #030711; }
+  #section-number { margin-left: 7px; color: var(--muted); font: 11px ui-monospace, monospace; }
   nav { position: absolute; right: var(--edge); top: 50%; transform: translateY(-50%); }
   nav ol { list-style: none; padding: 0; margin: 0; position: relative; }
   nav ol::before { content: ""; position: absolute; right: 11px; top: 16px; bottom: 16px; width: 1px; background: #b5c7e05b; }
@@ -56,10 +55,14 @@
   #flight-icon::before { content: ""; border-block: 6px solid transparent; border-left: 10px solid currentColor; }
   #flight[data-active] #flight-icon::before { width: 5px; height: 12px; border: 0; border-inline: 3px solid currentColor; }
   kbd { border: 1px solid #a7bcdb50; border-radius: 4px; padding: 3px 6px; color: #c5d4eb; font: 11px ui-monospace, monospace; }
+  .controls { display: flex; align-items: center; gap: 9px; }
+  #encounter { min-height: 44px; padding: 0 11px; border: 1px solid #b5d7fc44; border-radius: 8px; background: #0a1523d9; color: #d6e5fb; font-size: 12px; }
+  #encounter:hover { background: #1a3048; }
   .hint { color: #bac9df; font-size: 12px; text-align: right; }
   @media (max-width: 650px) {
     header { top: max(18px, env(safe-area-inset-top)); padding-bottom: 14px; }
-    .scene { top: 31%; }
+    .scene { top: max(83px, calc(env(safe-area-inset-top) + 69px)); }
+    h1 { font-size: 15px; }
     nav button { min-height: 44px; min-width: 44px; }
     nav button span { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; white-space: nowrap; }
     nav ol::before { top: 22px; bottom: 22px; }
@@ -67,8 +70,7 @@
   }
   @media (hover: none) { kbd { display: none; } }
   @media (max-height: 440px) {
-    h1 { font-size: clamp(32px, 7vw, 57px); }
-    .scene { top: 28%; }
+    .scene { max-width: 46vw; }
     nav button { min-height: 27px; }
     #flight { min-height: 40px; }
   }
@@ -83,8 +85,7 @@
     <div class="range"><span id="distance-label">지구로부터</span><output id="distance" aria-labelledby="distance-label" aria-live="off">0 km</output></div>
   </header>
   <section class="scene" aria-live="polite" aria-atomic="true">
-    <span id="section-number" aria-hidden="true">01</span>
-    <h1 id="scene-name">지구</h1>
+    <h1 id="scene-name">지구</h1><span id="section-number" aria-hidden="true"></span>
     <p id="scene-description">푸른 지평선에서 우주여행을 시작하세요.</p>
   </section>
   <nav aria-label="탐사 구간">
@@ -97,9 +98,12 @@
     </ol>
   </nav>
   <footer>
-    <button type="button" id="flight" aria-keyshortcuts="Space">
-      <span id="flight-icon" aria-hidden="true"></span><span id="flight-label">비행 시작</span><kbd aria-hidden="true">Space</kbd>
-    </button>
+    <div class="controls">
+      <button type="button" id="flight" aria-keyshortcuts="Space">
+        <span id="flight-icon" aria-hidden="true"></span><span id="flight-label">비행 시작</span><kbd aria-hidden="true">Space</kbd>
+      </button>
+      <button type="button" id="encounter">다음 이벤트</button>
+    </div>
     <span class="hint" id="hint">스크롤로 둘러보기</span>
   </footer>
 </main>
@@ -246,11 +250,266 @@ function makeGalaxy() {
   return layer;
 }
 
+function makeNebula() {
+  const layer = document.createElement("canvas");
+  const w = 640, h = 384;
+  layer.width = w;
+  layer.height = h;
+  const painter = layer.getContext("2d");
+  const image = painter.createImageData(w, h);
+  const random = randomGenerator(516167);
+  const grid = Float32Array.from({ length: 4096 }, random);
+  function noise(x, y) {
+    const a = Math.floor(x), b = Math.floor(y);
+    const sample = (col, row) => grid[(row & 63) * 64 + (col & 63)];
+    return mix(mix(sample(a, b), sample(a + 1, b), smooth(x - a)),
+      mix(sample(a, b + 1), sample(a + 1, b + 1), smooth(x - a)), smooth(y - b));
+  }
+  function clouds(x, y) {
+    let value = 0, strength = .54;
+    for (let octave = 0; octave < 5; octave++) {
+      value += noise(x, y) * strength;
+      x = x * 2.03 + 12;
+      y = y * 2.07 + 19;
+      strength *= .48;
+    }
+    return value;
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const u = x / w, v = y / h;
+      const band = v - (.76 - u * .5 + .085 * Math.sin(u * 11));
+      const falloff = Math.exp(-(band ** 2) * 19) * smooth(u * 4) * smooth((1 - u) * 4);
+      const detail = clouds(u * 8 + 2, v * 10 + noise(u * 7, v * 5) * 1.7);
+      const ridge = Math.max(0, detail - .28) ** 1.45 * falloff;
+      const warm = smooth((noise(u * 4 + 12, v * 3) - .25) * 2.2);
+      const i = (y * w + x) * 4;
+      image.data[i] = mix(23, 205, warm) + ridge * 56;
+      image.data[i + 1] = mix(102, 69, warm) + ridge * 65;
+      image.data[i + 2] = mix(194, 138, warm) + ridge * 80;
+      image.data[i + 3] = ridge * 735;
+    }
+  }
+  painter.putImageData(image, 0, 0);
+  painter.globalCompositeOperation = "screen";
+  for (let i = 0; i < 1500; i++) {
+    const x = random(), offset = (random() + random() - 1) * .5;
+    const y = .76 - x * .5 + .085 * Math.sin(x * 11) + offset;
+    painter.fillStyle = `rgba(193,209,255,${.06 + random() ** 5 * .49})`;
+    const dot = .36 + random() ** 6;
+    painter.fillRect(x * w, y * h, dot, dot);
+  }
+  return layer;
+}
+
+const encounterTypes = [
+  { name: "운석 무리", description: "암석 무리가 비행 경로를 가로지릅니다.", color: "#ffcda4", draw: drawAsteroids },
+  { name: "외계 함선", description: "미확인 함선 편대가 시야를 스쳐 갑니다.", color: "#91f4ef", draw: drawFleet },
+  { name: "블랙홀", description: "검은 중심 주위로 달아오른 강착 원반이 휘어집니다.", color: "#ffbc78", draw: drawBlackHole },
+  { name: "행성 붕괴", description: "갈라진 행성에서 뜨거운 파편이 흩어집니다.", color: "#ff9c86", draw: drawPlanetBreakup },
+  { name: "항성 폭발", description: "별이 폭발하며 가스와 충격파를 우주로 밀어냅니다.", color: "#ffc7f4", draw: drawSupernova }
+];
+const firstEncounters = [1.55, 2.64, 4.72, 5.98, 7.24];
+const encounterSpacing = 1.26;
+const encounterWindow = .35;
+function encounterAt(index) {
+  return firstEncounters[index] ?? firstEncounters.at(-1) + (index - firstEncounters.length + 1) * encounterSpacing;
+}
+function nearestEncounter(progress) {
+  if (progress >= firstEncounters.at(-1)) {
+    return firstEncounters.length - 1 + Math.round((progress - firstEncounters.at(-1)) / encounterSpacing);
+  }
+  return firstEncounters.reduce((nearest, at, index) =>
+    Math.abs(progress - at) < Math.abs(progress - firstEncounters[nearest]) ? index : nearest, 0);
+}
+function currentEncounter(progress) {
+  const index = nearestEncounter(progress);
+  const offset = (progress - encounterAt(index)) / encounterWindow;
+  if (Math.abs(offset) >= 1) return null;
+  const type = encounterTypes[index % encounterTypes.length];
+  return { index, type, offset, opacity: 1 - smooth((Math.abs(offset) - .34) / .66) };
+}
+function circle(x, y, radius, fill) {
+  context.fillStyle = fill;
+  context.beginPath();
+  context.arc(x, y, radius, 0, TAU);
+  context.fill();
+}
+function ellipse(x, y, a, b, start, end, color, thickness = 1) {
+  context.strokeStyle = color;
+  context.lineWidth = thickness;
+  context.beginPath();
+  context.ellipse(x, y, a, b, 0, start, end);
+  context.stroke();
+}
+function makeRocks(seed, count) {
+  const random = randomGenerator(seed);
+  return Array.from({ length: count }, () => ({
+    x: random() * 2.3 - 1.15, y: random() + random() - 1,
+    r: .012 + random() ** 3 * .13, angle: random() * TAU, drift: .4 + random(),
+    edges: Array.from({ length: 8 }, () => .65 + random() * .4)
+  }));
+}
+const rocks = makeRocks(3717, 48);
+const ejecta = makeRocks(1481, 67);
+function paintRock(x, y, radius, rock, hot = false) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(rock.angle + x * .009);
+  const face = context.createLinearGradient(-radius, -radius, radius * .6, radius);
+  face.addColorStop(0, hot ? "#ffc38a" : "#ada298");
+  face.addColorStop(.37, hot ? "#8e3b39" : "#5c5756");
+  face.addColorStop(1, hot ? "#21121f" : "#141620");
+  context.fillStyle = face;
+  context.beginPath();
+  rock.edges.forEach((edge, index) => {
+    const angle = index * TAU / rock.edges.length;
+    const px = Math.cos(angle) * radius * edge, py = Math.sin(angle) * radius * edge * .75;
+    if (index === 0) context.moveTo(px, py);
+    else context.lineTo(px, py);
+  });
+  context.closePath();
+  context.fill();
+  context.strokeStyle = hot ? "#ea99786b" : "#b9b1a35b";
+  context.lineWidth = Math.max(.5, radius * .032);
+  context.stroke();
+  context.restore();
+}
+function drawAsteroids(scale, offset) {
+  context.rotate(-.29);
+  const separation = .77 + (offset + 1) * .32;
+  for (const rock of rocks) {
+    const x = (rock.x * separation + offset * rock.drift * .52) * scale;
+    const y = rock.y * scale * .48 * separation;
+    paintRock(x, y, rock.r * scale * separation, rock);
+  }
+}
+function drawFleet(scale, offset) {
+  context.rotate(-.32);
+  for (const [x, y, size] of [[-.32,-.18,.37], [.39,.14,.52], [.04,.05,1]]) {
+    context.save();
+    context.translate((x + offset * .49) * scale, y * scale);
+    const u = scale * size * (.62 + .25 * (offset + 1));
+    context.scale(u, u);
+    glow(context, -.26, 0, .34, [[0, "#74fff8a6"], [.37, "#26c7ef51"], [1, "#2460ff00"]]);
+    const hull = context.createLinearGradient(0, -.20, 0, .20);
+    hull.addColorStop(0, "#a8cbd2");
+    hull.addColorStop(.38, "#3e5968");
+    hull.addColorStop(.57, "#171f31");
+    hull.addColorStop(1, "#364958");
+    context.beginPath();
+    context.moveTo(.34, 0);
+    context.lineTo(-.02, -.085);
+    context.lineTo(-.25, -.205);
+    context.lineTo(-.19, -.05);
+    context.lineTo(-.29, 0);
+    context.lineTo(-.19, .05);
+    context.lineTo(-.25, .205);
+    context.lineTo(-.02, .085);
+    context.closePath();
+    context.fillStyle = hull;
+    context.fill();
+    context.strokeStyle = "#9cdce286";
+    context.lineWidth = .003;
+    context.stroke();
+    for (const wing of [-1, 1]) {
+      context.beginPath();
+      context.moveTo(-.22, wing * .164);
+      context.lineTo(-.11, wing * .085);
+      context.lineTo(.16, wing * .022);
+      context.strokeStyle = "#79fff2";
+      context.lineWidth = .005;
+      context.stroke();
+    }
+    for (const light of [-.17, -.10, -.03, .04, .11]) circle(light, 0, .006, "#baffe9");
+    context.restore();
+  }
+}
+function drawBlackHole(scale, offset) {
+  const radius = scale * (.22 + offset * .064);
+  glow(context, 0, 0, radius * 3.8, [[0,"#cc6a46a6"], [.35,"#bd52299f"], [.67,"#89317d40"], [1,"#89317d00"]]);
+  context.rotate(-.27);
+  for (let ring = 0; ring < 21; ring++) {
+    const a = radius * (1.09 + ring * .095);
+    ellipse(0, 0, a, a * .29, 0, TAU, `rgba(255,${185 - ring * 5},95,${.65 - ring * .027})`, radius * .034);
+  }
+  circle(0, 0, radius, "#020108");
+  ellipse(0, 0, radius * 1.024, radius * 1.024, Math.PI, TAU, "#ffd69d", radius * .056);
+  ellipse(0, 0, radius * 1.12, radius * 1.075, Math.PI * 1.05, Math.PI * 1.94, "#ff9d675e", radius * .08);
+  for (let ring = 0; ring < 12; ring++) {
+    const a = radius * (1.06 + ring * .14);
+    ellipse(0, 0, a, a * .30, 0, Math.PI, `rgba(255,${231 - ring * 10},${165 - ring * 6},${.89 - ring * .065})`, radius * .036);
+  }
+}
+function drawPlanetBreakup(scale, offset) {
+  const radius = scale * .20;
+  const phase = smooth((offset + .6) * 1.16);
+  const split = phase * radius * .33;
+  glow(context, 0, 0, radius * 2.05, [[0,"#ffa865bf"], [.39,"#eb624870"], [1,"#c1434600"]]);
+  const fissure = [[-.12,-1.12],[.12,-.54],[-.23,-.25],[.07,.05],[-.17,.41],[.16,.64],[.03,1.12]];
+  context.rotate(-.36);
+  for (const direction of [-1, 1]) {
+    context.save();
+    context.translate(direction * split, -direction * split * .17);
+    context.beginPath();
+    context.moveTo(direction * radius * 1.2, -radius * 1.2);
+    fissure.forEach(([x, y]) => context.lineTo(x * radius, y * radius));
+    context.lineTo(direction * radius * 1.2, radius * 1.2);
+    context.closePath();
+    context.clip();
+    globe(moon, 0, 0, radius);
+    context.globalCompositeOperation = "screen";
+    glow(context, radius * .03, 0, radius * .26, [[0,"#ff9d64bb"], [1,"#ff7f5600"]]);
+    context.restore();
+  }
+  for (const rock of ejecta.slice(0, 40)) {
+    const orbit = (rock.drift * .42 + .28) * (phase + .24);
+    paintRock(Math.cos(rock.angle) * scale * orbit, Math.sin(rock.angle) * scale * orbit * .71,
+      rock.r * radius * .59, rock, true);
+  }
+}
+function drawSupernova(scale, offset) {
+  const phase = clamp((offset + .68) / 1.45);
+  const radius = scale * mix(.07, .48, smooth(phase));
+  glow(context, 0, 0, radius * 1.9, [[0, "#fff2cc"], [.12, "#fff2ffd7"], [.27, "#ff9bdd9f"], [.46, "#a557d58f"], [.73, "#4241ac4b"], [1, "#5848bd00"]]);
+  const energy = context.createLinearGradient(-radius, 0, radius, 0);
+  energy.addColorStop(0, "#9769ee00");
+  energy.addColorStop(.34, "#d176ff8f");
+  energy.addColorStop(.5, "#fff8e6");
+  energy.addColorStop(.66, "#f07bbd91");
+  energy.addColorStop(1, "#9769ee00");
+  context.fillStyle = energy;
+  context.fillRect(-radius, -1, radius * 2, 2);
+  for (const rock of ejecta) {
+    const x = Math.cos(rock.angle), y = Math.sin(rock.angle);
+    const reach = radius * rock.drift;
+    context.strokeStyle = `rgba(255,168,211,${(.14 + rock.r * 3) * (1 - phase * .5)})`;
+    context.lineWidth = Math.max(.6, rock.r * scale * .02);
+    context.beginPath();
+    context.moveTo(x * reach * .36, y * reach * .36);
+    context.lineTo(x * reach, y * reach);
+    context.stroke();
+    circle(x * reach, y * reach, Math.max(.42, rock.r * scale * .026), "#ffddcebb");
+  }
+  for (const ring of [.62, .84, 1.04]) {
+    ellipse(0, 0, radius * ring, radius * ring * .91, 0, TAU, `rgba(255,182,223,${.32 * (1 - phase * .6)})`, 1.2);
+  }
+  circle(0, 0, Math.max(1, scale * .03 * (1 - phase)), "#fff7e6");
+}
+function drawEncounter(encounter) {
+  context.save();
+  context.globalAlpha = encounter.opacity;
+  context.translate(width * (width < 650 ? .51 : .56), height * .53);
+  encounter.type.draw(Math.min(width * .83, height * .9), encounter.offset);
+  context.restore();
+}
+
+const nebula = makeNebula();
 const earth = makeGlobe(800);
 const moon = makeGlobe(144, true);
 const spiral = makeGalaxy();
 const starRandom = randomGenerator(586143);
-const stars = Array.from({ length: 670 }, () => ({
+const stars = Array.from({ length: 870 }, () => ({
   x: starRandom() * 2 - 1, y: starRandom() * 2 - 1, z: starRandom(),
   size: .4 + starRandom() ** 4 * 1.5, light: .15 + starRandom() ** 2 * .8
 }));
@@ -270,7 +529,7 @@ const planets = [
 let width = 1, height = 1;
 let position = 0, target = 0, speed = 0, starTravel = 0;
 let flying = false, started = false, jump = false, lastFrame = 0, frameRequest = 0;
-let displayedStage = -1, displayedSegment = -1, lastDistanceUpdate = -1;
+let displayedStage = -1, displayedEvent = -1, displayedSegment = -1, lastDistanceUpdate = -1;
 let touchY = null;
 let cachedFieldNumber = -1, cachedField = [];
 const flightButton = document.querySelector("#flight");
@@ -280,6 +539,7 @@ const description = document.querySelector("#scene-description");
 const sectionNumber = document.querySelector("#section-number");
 const distance = document.querySelector("#distance");
 const stops = [...document.querySelectorAll("[data-stop]")];
+const encounterButton = document.querySelector("#encounter");
 
 function resize() {
   width = window.innerWidth;
@@ -331,8 +591,8 @@ function drawEarth(progress, alpha) {
   const orbit = smooth(progress);
   const retreat = smooth(progress - 1);
   const radius = mix(Math.max(width * .57, height * .67), scale * .12, orbit) * mix(1, .10, retreat);
-  const x = width * mix(.52, .63, orbit);
-  const y = mix(height * .62 + radius, height * .48, orbit);
+  const x = width * mix(.51, .55, orbit);
+  const y = mix(height * .52 + radius, height * .50, orbit);
   context.globalAlpha = alpha;
   globe(earth, x, y, radius, true);
   context.globalAlpha = alpha * smooth((progress - .25) * 2);
@@ -344,7 +604,7 @@ function drawSolar(progress, alpha) {
   const compact = width < 650;
   const scale = Math.min(width * (compact ? .44 : .40), height * .60);
   const radius = scale * mix(.79, 1.0, smooth((progress - 1.35) * 1.7)) * mix(1, .08, smooth(progress - 2));
-  const x = width * (compact ? .52 : .59), y = height * (compact ? .61 : .52);
+  const x = width * .54, y = height * (compact ? .61 : .52);
   const tilt = -.18;
   context.save();
   context.translate(x, y);
@@ -384,9 +644,9 @@ function drawMilkyWay(progress, alpha) {
   const compact = width < 650;
   const scale = Math.min(width, height);
   const size = scale * mix(.53, .81, smooth((progress - 2.4) * 1.7)) * mix(1, .28, smooth(progress - 3));
-  galaxy(width * (compact ? .55 : .65), height * (compact ? .61 : .51), size, -.31, .51);
+  galaxy(width * .55, height * (compact ? .61 : .51), size, -.31, .51);
 }
-function drawDeepSpace(progress) {
+function drawDeepSpace(progress, backdrop) {
   const current = Math.max(0, progress - 3);
   const segment = Math.floor(current);
   if (segment !== cachedFieldNumber) {
@@ -403,7 +663,7 @@ function drawDeepSpace(progress) {
   for (const [index, field] of cachedField.entries()) {
     const opacity = index === 0 ? 1 - blend : blend;
     for (const item of field) {
-      context.globalAlpha = opacity * (.37 + item.tint * .58) * smooth((progress - 3.12) * 1.3);
+      context.globalAlpha = backdrop * opacity * (.37 + item.tint * .58) * smooth((progress - 3.12) * 1.3);
       const shift = index === 0 ? 1 + blend * .45 : .56 + blend * .44;
       galaxy(width * (.55 + (item.x - .55) * shift), height * (.52 + (item.y - .52) * shift),
         Math.min(width, height) * item.size * shift, item.angle, item.tilt);
@@ -411,18 +671,30 @@ function drawDeepSpace(progress) {
   }
 }
 
-function draw(motion) {
+function draw(motion, encounter) {
   context.globalAlpha = 1;
-  context.fillStyle = "#030711";
+  context.fillStyle = "#02030a";
   context.fillRect(0, 0, width, height);
-  glow(context, width * .66, height * .59, Math.max(width, height) * .72,
-    [[0, "#111d34"], [.46, "#0a1324"], [1, "#04071100"]]);
-  drawStars(motion);
-  if (position < 2) drawEarth(position, 1 - smooth((position - 1.22) / .73));
-  if (position > 1.25 && position < 3) drawSolar(position, smooth((position - 1.25) * 1.8) * (1 - smooth((position - 2.25) * 1.5)));
-  if (position > 2.35 && position < 4.24) drawMilkyWay(position, smooth((position - 2.35) * 1.9) * (1 - smooth((position - 3.58) * 1.5)));
-  if (position > 3.12) drawDeepSpace(position);
+  const mobile = width < 650;
+  const drift = reducedMotion.matches ? 0 : Math.sin(position * .42) * width * .08;
+  context.globalAlpha = mix(.46, .94, smooth(position / 2.8));
+  context.drawImage(nebula, -width * .14 + drift, -height * .14, width * 1.28, height * 1.29);
+  context.save();
+  context.translate(width * .55, height * .45);
+  context.rotate(mobile ? .64 : .38);
+  context.scale(-1, 1);
+  context.globalAlpha *= .37;
+  context.drawImage(nebula, -width * .66, -height * .66, width * 1.14, height * 1.16);
+  context.restore();
   context.globalAlpha = 1;
+  drawStars(motion);
+  const backdrop = 1 - (encounter?.opacity ?? 0) * .76;
+  if (position < 2) drawEarth(position, backdrop * (1 - smooth((position - 1.22) / .73)));
+  if (position > 1.25 && position < 3) drawSolar(position, backdrop * smooth((position - 1.25) * 1.8) * (1 - smooth((position - 2.25) * 1.5)));
+  if (position > 2.35 && position < 4.24) drawMilkyWay(position, backdrop * smooth((position - 2.35) * 1.9) * (1 - smooth((position - 3.58) * 1.5)));
+  if (position > 3.12) drawDeepSpace(position, backdrop);
+  context.globalAlpha = 1;
+  if (encounter) drawEncounter(encounter);
 }
 
 const numberFormat = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 });
@@ -438,13 +710,17 @@ function formatDistance(progress) {
   if (km >= 1.495978707e8) return `${numberFormat.format(km / 1.495978707e8)} AU`;
   return `${numberFormat.format(Math.round(km))} km`;
 }
-function updateReadouts(time) {
+function updateReadouts(time, encounter) {
   const stage = Math.min(4, Math.floor(position + .42));
   const segment = Math.floor(Math.max(0, position - 4));
-  if (stage !== displayedStage) {
+  const eventIndex = encounter && encounter.opacity > .42 ? encounter.index : -1;
+  if (stage !== displayedStage || eventIndex !== displayedEvent) {
     displayedStage = stage;
-    sceneName.textContent = waypoints[stage].name;
-    description.textContent = waypoints[stage].description;
+    displayedEvent = eventIndex;
+    const entry = eventIndex < 0 ? waypoints[stage] : encounter.type;
+    sceneName.textContent = entry.name;
+    sceneName.style.color = entry.color || "";
+    description.textContent = entry.description;
     stops.forEach((stop, index) => {
       if (index === stage) stop.setAttribute("aria-current", "step");
       else stop.removeAttribute("aria-current");
@@ -453,7 +729,7 @@ function updateReadouts(time) {
   if (segment !== displayedSegment || sectionNumber.dataset.stage !== String(stage)) {
     displayedSegment = segment;
     sectionNumber.dataset.stage = stage;
-    sectionNumber.textContent = String(stage + 1 + segment).padStart(2, "0");
+    sectionNumber.textContent = stage === 4 && segment > 0 ? `구역 ${segment + 1}` : "";
   }
   if (time - lastDistanceUpdate > 65 || Math.abs(position - target) < .001 && !flying) {
     lastDistanceUpdate = time;
@@ -465,25 +741,29 @@ function requestFrame() {
 }
 function frame(time) {
   frameRequest = 0;
-  const dt = lastFrame ? Math.min((time - lastFrame) / 1000, .05) : 0;
+  const elapsed = lastFrame ? (time - lastFrame) / 1000 : 0;
+  const dt = Math.min(elapsed, .05);
   lastFrame = time;
   if (flying) {
     const nearest = Math.round(position);
     const arrival = nearest <= 3 ? Math.exp(-((position - nearest) ** 2) / .025) : 0;
-    const cruise = (1.0 - .67 * arrival) * (reducedMotion.matches ? .5 : 1);
+    const encounter = currentEncounter(position);
+    const encounterSlowdown = (encounter?.opacity ?? 0) * .56;
+    const cruise = (1 - Math.max(.67 * arrival, encounterSlowdown)) * (reducedMotion.matches ? .5 : 1);
     speed = mix(speed, cruise, 1 - Math.exp(-dt * 3.5));
     position += speed * dt;
     target = position;
     if (!reducedMotion.matches) starTravel += speed * dt * .54;
   } else if (Math.abs(target - position) > .001) {
-    const rate = jump ? 3.8 : 10;
-    position = reducedMotion.matches ? target : mix(position, target, 1 - Math.exp(-rate * dt));
+    const rate = jump ? 5.4 : 10;
+    position = reducedMotion.matches ? target : mix(position, target, 1 - Math.exp(-rate * Math.min(elapsed, .3)));
   } else {
     position = target;
     jump = false;
   }
-  draw(speed);
-  updateReadouts(time);
+  const encounter = currentEncounter(position);
+  draw(speed, encounter);
+  updateReadouts(time, encounter);
   if (flying || target !== position) requestFrame();
   else lastFrame = 0;
 }
@@ -542,6 +822,15 @@ stops.forEach((stop) => {
     jump = true;
     requestFrame();
   });
+});
+encounterButton.addEventListener("click", () => {
+  const progress = Math.max(position, target);
+  const nearest = nearestEncounter(progress);
+  const next = encounterAt(nearest) - progress > .06 ? nearest : nearest + 1;
+  setFlight(false);
+  target = encounterAt(next);
+  jump = true;
+  requestFrame();
 });
 function updateHint() {
   document.querySelector("#hint").textContent = touchInput.matches ? "위아래로 밀어 둘러보기" : "스크롤로 둘러보기";
