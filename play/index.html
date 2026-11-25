@@ -56,8 +56,17 @@
   #flight[data-active] #flight-icon::before { width: 5px; height: 12px; border: 0; border-inline: 3px solid currentColor; }
   kbd { border: 1px solid #a7bcdb50; border-radius: 4px; padding: 3px 6px; color: #c5d4eb; font: 11px ui-monospace, monospace; }
   .controls { display: flex; align-items: center; gap: 9px; }
-  #encounter { min-height: 44px; padding: 0 11px; border: 1px solid #b5d7fc44; border-radius: 8px; background: #0a1523d9; color: #d6e5fb; font-size: 12px; }
-  #encounter:hover { background: #1a3048; }
+  .black-hole-control { min-height: 44px; padding: 0 11px; border: 1px solid #b5d7fc44; border-radius: 8px; background: #0a1523d9; color: #d6e5fb; font-size: 12px; }
+  .black-hole-control:hover { background: #1a3048; }
+  #black-hole-toggle[aria-checked="true"] { border-color: #bd946b80; color: #ffe1b8; }
+  #black-hole-state { font: 10px ui-monospace, monospace; margin-left: 4px; }
+  .black-hole-control[hidden] { display: none; }
+  @media (max-width: 535px) {
+    footer .hint { display: none; }
+    .controls { gap: 6px; }
+    #flight, .black-hole-control { padding-inline: 8px; font-size: 12px; }
+    kbd { display: none; }
+  }
   .hint { color: #bac9df; font-size: 12px; text-align: right; }
   @media (max-width: 650px) {
     header { top: max(18px, env(safe-area-inset-top)); padding-bottom: 14px; }
@@ -102,7 +111,10 @@
       <button type="button" id="flight" aria-keyshortcuts="Space">
         <span id="flight-icon" aria-hidden="true"></span><span id="flight-label">비행 시작</span><kbd aria-hidden="true">Space</kbd>
       </button>
-      <button type="button" id="encounter">다음 이벤트</button>
+      <button type="button" id="black-hole-toggle" class="black-hole-control" role="switch" aria-checked="true">
+        블랙홀 <span id="black-hole-state" aria-hidden="true">ON</span>
+      </button>
+      <button type="button" id="black-hole-flight" class="black-hole-control">블랙홀 진입</button>
     </div>
     <span class="hint" id="hint">스크롤로 둘러보기</span>
   </footer>
@@ -302,205 +314,278 @@ function makeNebula() {
   return layer;
 }
 
-const encounterTypes = [
-  { name: "운석 무리", description: "암석 무리가 비행 경로를 가로지릅니다.", color: "#ffcda4", draw: drawAsteroids },
-  { name: "외계 함선", description: "미확인 함선 편대가 시야를 스쳐 갑니다.", color: "#91f4ef", draw: drawFleet },
-  { name: "블랙홀", description: "검은 중심 주위로 달아오른 강착 원반이 휘어집니다.", color: "#ffbc78", draw: drawBlackHole },
-  { name: "행성 붕괴", description: "갈라진 행성에서 뜨거운 파편이 흩어집니다.", color: "#ff9c86", draw: drawPlanetBreakup },
-  { name: "항성 폭발", description: "별이 폭발하며 가스와 충격파를 우주로 밀어냅니다.", color: "#ffc7f4", draw: drawSupernova }
+const blackHoleRoute = { entry: 4.53, horizon: 5.71, exit: 6.13 };
+const blackHolePhases = [
+  { name: "블랙홀 접근", description: "강착 원반의 뒷면과 별빛이 중력 렌즈를 따라 휘어 보입니다." },
+  { name: "블랙홀 낙하", description: "그림자가 시야를 채우고 빛이 가장자리로 밀려납니다." },
+  { name: "사건의 지평선", description: "지평선 통과는 암전으로 연출했습니다." }
 ];
-const firstEncounters = [1.55, 2.64, 4.72, 5.98, 7.24];
-const encounterSpacing = 1.26;
-const encounterWindow = .35;
-function encounterAt(index) {
-  return firstEncounters[index] ?? firstEncounters.at(-1) + (index - firstEncounters.length + 1) * encounterSpacing;
-}
-function nearestEncounter(progress) {
-  if (progress >= firstEncounters.at(-1)) {
-    return firstEncounters.length - 1 + Math.round((progress - firstEncounters.at(-1)) / encounterSpacing);
+const blackHoleSetting = "jigu-neomeo.black-hole";
+
+function readBlackHoleSetting() {
+  try {
+    return localStorage.getItem(blackHoleSetting) !== "off";
+  } catch {
+    return true;
   }
-  return firstEncounters.reduce((nearest, at, index) =>
-    Math.abs(progress - at) < Math.abs(progress - firstEncounters[nearest]) ? index : nearest, 0);
 }
-function currentEncounter(progress) {
-  const index = nearestEncounter(progress);
-  const offset = (progress - encounterAt(index)) / encounterWindow;
-  if (Math.abs(offset) >= 1) return null;
-  const type = encounterTypes[index % encounterTypes.length];
-  return { index, type, offset, opacity: 1 - smooth((Math.abs(offset) - .34) / .66) };
+
+function currentBlackHole(progress) {
+  const { entry, horizon, exit } = blackHoleRoute;
+  if (!blackHoleEnabled || progress < entry || progress >= exit) return null;
+  const fall = clamp((progress - entry) / (horizon - entry));
+  const beyond = Math.max(0, progress - horizon);
+  return {
+    fall,
+    phase: beyond > 0 ? 2 : fall > .55 ? 1 : 0,
+    opacity: smooth(fall / .17) * (1 - smooth((beyond - .12) / .30))
+  };
 }
-function circle(x, y, radius, fill) {
-  context.fillStyle = fill;
-  context.beginPath();
-  context.arc(x, y, radius, 0, TAU);
-  context.fill();
+
+const blackHoleFragment = `
+precision highp float;
+uniform vec2 viewport;
+uniform float fall;
+uniform sampler2D nebulaTexture;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
-function ellipse(x, y, a, b, start, end, color, thickness = 1) {
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 t = fract(p);
+  t = t * t * (3.0 - 2.0 * t);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), t.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), t.x), t.y);
+}
+vec3 sky(vec3 ray) {
+  vec2 uv = vec2(0.5 + atan(ray.x, -ray.z) / 6.2831853,
+                 0.5 - asin(clamp(ray.y, -1.0, 1.0)) / 3.1415926);
+  vec4 gas = texture2D(nebulaTexture, uv);
+  vec2 grid = uv * vec2(818.0, 396.0);
+  vec2 cell = floor(grid);
+  vec2 offset = vec2(hash(cell + 32.0), hash(cell - 13.0)) * .62 + .19;
+  float star = 1.0 - smoothstep(.06, .19, length(fract(grid) - offset));
+  star *= pow(hash(cell), 12.0) * 1.4;
+  vec2 bigGrid = uv * vec2(135.0, 64.0);
+  float bright = pow(hash(floor(bigGrid) + 74.0), 26.0);
+  float halo = exp(-length(fract(bigGrid) - .5) * 26.0) * bright;
+  return vec3(.0015, .002, .006) + gas.rgb * gas.a * 1.15
+       + vec3(.71, .80, 1.0) * (star + halo * .6);
+}
+vec4 accretion(vec3 p, vec3 ray) {
+  float radius = length(p.xz);
+  if (radius < 2.80 || radius > 13.0) return vec4(0.0);
+  float angle = atan(p.z, p.x);
+  vec2 turbulence = vec2(sin(angle + radius * .53), cos(angle + radius * .53));
+  float grain = noise(vec2(radius * 11.0, 0.0) + turbulence * 5.0);
+  grain = mix(grain, noise(vec2(radius * 36.0, 12.0) + turbulence * 12.0), .38);
+  float bands = .72 + .28 * sin(radius * 42.0 + grain * 4.3);
+  float envelope = smoothstep(2.80, 3.25, radius) * (1.0 - smoothstep(8.0, 13.0, radius));
+  vec3 orbit = normalize(vec3(-p.z, 0.0, p.x));
+  float doppler = pow(clamp(1.0 - dot(orbit, ray) * .48, .54, 1.46), 2.6);
+  float heat = exp(-(radius - 3.0) * .29);
+  vec3 tone = mix(vec3(.94, .15, .028), vec3(1.0, .82, .50), clamp(heat * doppler, .0, 1.0));
+  float opacity = clamp(envelope * (.27 + grain * .72), .0, .93);
+  float energy = envelope * heat * (.44 + grain * .78) * bands * doppler * 2.8;
+  return vec4(tone * energy, opacity);
+}
+void main() {
+  vec2 screen = (gl_FragCoord.xy * 2.0 - viewport) / viewport.y;
+  float distance = mix(22.0, 1.025, pow(fall, 1.26));
+  float bearing = mix(.11, -.36, fall);
+  float elevation = mix(.23, .12, fall);
+  vec3 p = distance * vec3(sin(bearing) * cos(elevation), sin(elevation),
+                           cos(bearing) * cos(elevation));
+  vec3 forward = normalize(-p);
+  vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(right, forward);
+  float focal = mix(1.68, .82, smoothstep(.48, 1.0, fall));
+  vec3 ray = normalize(forward * focal + right * screen.x + up * screen.y);
+  vec3 momentum = cross(p, ray);
+  float h2 = dot(momentum, momentum);
+  vec3 light = vec3(0.0);
+  float transmission = 1.0;
+  bool fellIn = false;
+
+  // In units of the Schwarzschild radius, the central term bends null trajectories.
+  for (int i = 0; i < 88; i++) {
+    float radius = length(p);
+    if (radius < 1.015) { fellIn = true; break; }
+    if (radius > 32.0 && dot(p, ray) > 0.0) break;
+    float stepSize = clamp(radius * .095, .061, 1.7);
+    vec3 old = p;
+    vec3 acceleration = -1.5 * h2 * p / (radius * radius * radius * radius * radius);
+    ray += acceleration * stepSize * .5;
+    p += ray * stepSize;
+    float nextR = max(length(p), .9);
+    ray -= .75 * h2 * p * stepSize / (nextR * nextR * nextR * nextR * nextR);
+
+    if ((old.y > 0.0) != (p.y > 0.0)) {
+      vec3 hit = mix(old, p, old.y / (old.y - p.y));
+      vec4 disk = accretion(hit, normalize(ray));
+      light += transmission * disk.rgb * disk.a;
+      transmission *= 1.0 - disk.a * .87;
+    }
+  }
+  if (!fellIn) light += transmission * sky(normalize(ray));
+  vec3 exposed = 1.0 - exp(-max(light, 0.0) * 1.55);
+  gl_FragColor = vec4(pow(exposed, vec3(.84)), 1.0);
+}
+`;
+
+function createBlackHoleRenderer(texture) {
+  const layer = document.createElement("canvas");
+  const gl = layer.getContext("webgl", { alpha: false, antialias: false, depth: false, preserveDrawingBuffer: true });
+  if (!gl) return null;
+  function compile(type, code) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, code);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.warn("Black hole shader unavailable", gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+  const vertex = compile(gl.VERTEX_SHADER, "attribute vec2 vertex; void main() { gl_Position = vec4(vertex, 0., 1.); }");
+  const fragment = compile(gl.FRAGMENT_SHADER, blackHoleFragment);
+  if (!vertex || !fragment) return null;
+  const program = gl.createProgram();
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.warn("Black hole shader could not link", gl.getProgramInfoLog(program));
+    return null;
+  }
+  gl.useProgram(program);
+  const triangle = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, triangle);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const attribute = gl.getAttribLocation(program, "vertex");
+  gl.enableVertexAttribArray(attribute);
+  gl.vertexAttribPointer(attribute, 2, gl.FLOAT, false, 0, 0);
+  gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture);
+  gl.uniform1i(gl.getUniformLocation(program, "nebulaTexture"), 0);
+  const viewport = gl.getUniformLocation(program, "viewport");
+  const progress = gl.getUniformLocation(program, "fall");
+  let lastFall = -1;
+  return (w, h, fall) => {
+    if (gl.isContextLost()) return null;
+    const density = Math.min(.68, 700 / w, 500 / h, Math.sqrt(215000 / (w * h)));
+    const rw = Math.max(1, Math.round(w * density)), rh = Math.max(1, Math.round(h * density));
+    if (layer.width !== rw || layer.height !== rh) {
+      layer.width = rw;
+      layer.height = rh;
+      gl.viewport(0, 0, rw, rh);
+      gl.uniform2f(viewport, rw, rh);
+      lastFall = -1;
+    }
+    if (lastFall !== fall) {
+      gl.uniform1f(progress, fall);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      lastFall = fall;
+    }
+    return layer;
+  };
+}
+
+function ellipse(x, y, a, b, start, end, color, thickness) {
   context.strokeStyle = color;
   context.lineWidth = thickness;
   context.beginPath();
   context.ellipse(x, y, a, b, 0, start, end);
   context.stroke();
 }
-function makeRocks(seed, count) {
-  const random = randomGenerator(seed);
-  return Array.from({ length: count }, () => ({
-    x: random() * 2.3 - 1.15, y: random() + random() - 1,
-    r: .012 + random() ** 3 * .13, angle: random() * TAU, drift: .4 + random(),
-    edges: Array.from({ length: 8 }, () => .65 + random() * .4)
-  }));
-}
-const rocks = makeRocks(3717, 48);
-const ejecta = makeRocks(1481, 67);
-function paintRock(x, y, radius, rock, hot = false) {
-  context.save();
-  context.translate(x, y);
-  context.rotate(rock.angle + x * .009);
-  const face = context.createLinearGradient(-radius, -radius, radius * .6, radius);
-  face.addColorStop(0, hot ? "#ffc38a" : "#ada298");
-  face.addColorStop(.37, hot ? "#8e3b39" : "#5c5756");
-  face.addColorStop(1, hot ? "#21121f" : "#141620");
-  context.fillStyle = face;
+
+const lensRandom = randomGenerator(841093);
+const lensStars = Array.from({ length: 190 }, () => ({
+  angle: lensRandom() * TAU, distance: .013 + lensRandom() ** 2 * 1.45,
+  light: .13 + lensRandom() ** 4 * .8
+}));
+const diskDust = Array.from({ length: 420 }, () => ({
+  angle: lensRandom() * TAU, radius: 1.09 + lensRandom() ** 2.2 * 1.64,
+  light: .04 + lensRandom() ** 2 * .69
+}));
+function paintBlackHoleFallback(fall, opacity) {
+  const radius = Math.min(width, height) * mix(.155, 1.10, (fall ** 2.7));
+  context.translate(width * (.51 + fall * .037), height * .50);
+  context.rotate(-.16 - fall * .11);
+  glow(context, 0, 0, radius * 2.95, [[0, "#f9a2687a"], [.42, "#d8663280"], [.61, "#a03e3958"], [1, "#89317d00"]]);
+
+  // Stretch nearby background points tangentially around the shadow.
+  for (const star of lensStars) {
+    const arc = .003 + .061 * Math.exp(-star.distance * 7) * (1 + fall);
+    const a = radius * (1.035 + star.distance);
+    const angle = star.angle + fall * .43 / (1 + star.distance * 7);
+    ellipse(0, 0, a, a, angle - arc, angle + arc,
+      `rgba(203,217,255,${star.light * .76})`, Math.max(.65, radius * .0035));
+  }
+  const disk = context.createLinearGradient(-radius * 2.5, 0, radius * 2.5, 0);
+  disk.addColorStop(0, "#d4513100");
+  disk.addColorStop(.20, "#e9683775");
+  disk.addColorStop(.43, "#ee965184");
+  disk.addColorStop(.71, "#fff1bbeb");
+  disk.addColorStop(.88, "#f9884294");
+  disk.addColorStop(1, "#b94e3100");
+  for (let ring = 0; ring < 18; ring++) {
+    const a = radius * (1.005 + ring * .10);
+    context.globalAlpha = opacity * (1 - ring * .050);
+    ellipse(0, 0, a, a * .28, 0, TAU, disk, radius * .033);
+  }
+  context.globalAlpha = smooth(opacity);
+  context.fillStyle = "#010106";
   context.beginPath();
-  rock.edges.forEach((edge, index) => {
-    const angle = index * TAU / rock.edges.length;
-    const px = Math.cos(angle) * radius * edge, py = Math.sin(angle) * radius * edge * .75;
-    if (index === 0) context.moveTo(px, py);
-    else context.lineTo(px, py);
-  });
-  context.closePath();
+  context.arc(0, 0, radius, 0, TAU);
   context.fill();
-  context.strokeStyle = hot ? "#ea99786b" : "#b9b1a35b";
-  context.lineWidth = Math.max(.5, radius * .032);
-  context.stroke();
-  context.restore();
-}
-function drawAsteroids(scale, offset) {
-  context.rotate(-.29);
-  const separation = .77 + (offset + 1) * .32;
-  for (const rock of rocks) {
-    const x = (rock.x * separation + offset * rock.drift * .52) * scale;
-    const y = rock.y * scale * .48 * separation;
-    paintRock(x, y, rock.r * scale * separation, rock);
-  }
-}
-function drawFleet(scale, offset) {
-  context.rotate(-.32);
-  for (const [x, y, size] of [[-.32,-.18,.37], [.39,.14,.52], [.04,.05,1]]) {
-    context.save();
-    context.translate((x + offset * .49) * scale, y * scale);
-    const u = scale * size * (.62 + .25 * (offset + 1));
-    context.scale(u, u);
-    glow(context, -.26, 0, .34, [[0, "#74fff8a6"], [.37, "#26c7ef51"], [1, "#2460ff00"]]);
-    const hull = context.createLinearGradient(0, -.20, 0, .20);
-    hull.addColorStop(0, "#a8cbd2");
-    hull.addColorStop(.38, "#3e5968");
-    hull.addColorStop(.57, "#171f31");
-    hull.addColorStop(1, "#364958");
-    context.beginPath();
-    context.moveTo(.34, 0);
-    context.lineTo(-.02, -.085);
-    context.lineTo(-.25, -.205);
-    context.lineTo(-.19, -.05);
-    context.lineTo(-.29, 0);
-    context.lineTo(-.19, .05);
-    context.lineTo(-.25, .205);
-    context.lineTo(-.02, .085);
-    context.closePath();
-    context.fillStyle = hull;
-    context.fill();
-    context.strokeStyle = "#9cdce286";
-    context.lineWidth = .003;
-    context.stroke();
-    for (const wing of [-1, 1]) {
-      context.beginPath();
-      context.moveTo(-.22, wing * .164);
-      context.lineTo(-.11, wing * .085);
-      context.lineTo(.16, wing * .022);
-      context.strokeStyle = "#79fff2";
-      context.lineWidth = .005;
-      context.stroke();
+
+  // The obscured far side becomes visible above and below the shadow.
+  for (const [start, end, tilt, strength] of [[Math.PI, TAU, 1.01, 1], [.32, Math.PI - .32, .99, .48]]) {
+    for (let ring = 0; ring < 8; ring++) {
+      context.globalAlpha = opacity * (.88 - ring * .103) * strength;
+      ellipse(0, 0, radius * (1.013 + ring * .012), radius * (tilt + ring * .052), start, end,
+        disk, radius * (.016 + ring * .008));
     }
-    for (const light of [-.17, -.10, -.03, .04, .11]) circle(light, 0, .006, "#baffe9");
-    context.restore();
+  }
+  for (let ring = 0; ring < 17; ring++) {
+    const a = radius * (1.002 + ring * .105);
+    context.globalAlpha = opacity * (1 - ring * .054);
+    ellipse(0, 0, a, a * .28, 0, Math.PI, disk, radius * .036);
+  }
+  for (const speck of diskDust) {
+    const angle = (speck.angle + fall * (.27 / speck.radius)) % TAU;
+    const x = Math.cos(angle) * radius * speck.radius;
+    const y = Math.sin(angle) * radius * speck.radius * .28;
+    if (y < 0 && x * x + y * y < radius * radius) continue;
+    context.globalAlpha = opacity * speck.light * (.65 + x / (radius * 7));
+    context.fillStyle = "#ffe4ab";
+    context.fillRect(x, y, Math.max(.55, radius * .012), Math.max(.5, radius * .0035));
   }
 }
-function drawBlackHole(scale, offset) {
-  const radius = scale * (.22 + offset * .064);
-  glow(context, 0, 0, radius * 3.8, [[0,"#cc6a46a6"], [.35,"#bd52299f"], [.67,"#89317d40"], [1,"#89317d00"]]);
-  context.rotate(-.27);
-  for (let ring = 0; ring < 21; ring++) {
-    const a = radius * (1.09 + ring * .095);
-    ellipse(0, 0, a, a * .29, 0, TAU, `rgba(255,${185 - ring * 5},95,${.65 - ring * .027})`, radius * .034);
-  }
-  circle(0, 0, radius, "#020108");
-  ellipse(0, 0, radius * 1.024, radius * 1.024, Math.PI, TAU, "#ffd69d", radius * .056);
-  ellipse(0, 0, radius * 1.12, radius * 1.075, Math.PI * 1.05, Math.PI * 1.94, "#ff9d675e", radius * .08);
-  for (let ring = 0; ring < 12; ring++) {
-    const a = radius * (1.06 + ring * .14);
-    ellipse(0, 0, a, a * .30, 0, Math.PI, `rgba(255,${231 - ring * 10},${165 - ring * 6},${.89 - ring * .065})`, radius * .036);
-  }
-}
-function drawPlanetBreakup(scale, offset) {
-  const radius = scale * .20;
-  const phase = smooth((offset + .6) * 1.16);
-  const split = phase * radius * .33;
-  glow(context, 0, 0, radius * 2.05, [[0,"#ffa865bf"], [.39,"#eb624870"], [1,"#c1434600"]]);
-  const fissure = [[-.12,-1.12],[.12,-.54],[-.23,-.25],[.07,.05],[-.17,.41],[.16,.64],[.03,1.12]];
-  context.rotate(-.36);
-  for (const direction of [-1, 1]) {
-    context.save();
-    context.translate(direction * split, -direction * split * .17);
-    context.beginPath();
-    context.moveTo(direction * radius * 1.2, -radius * 1.2);
-    fissure.forEach(([x, y]) => context.lineTo(x * radius, y * radius));
-    context.lineTo(direction * radius * 1.2, radius * 1.2);
-    context.closePath();
-    context.clip();
-    globe(moon, 0, 0, radius);
-    context.globalCompositeOperation = "screen";
-    glow(context, radius * .03, 0, radius * .26, [[0,"#ff9d64bb"], [1,"#ff7f5600"]]);
-    context.restore();
-  }
-  for (const rock of ejecta.slice(0, 40)) {
-    const orbit = (rock.drift * .42 + .28) * (phase + .24);
-    paintRock(Math.cos(rock.angle) * scale * orbit, Math.sin(rock.angle) * scale * orbit * .71,
-      rock.r * radius * .59, rock, true);
-  }
-}
-function drawSupernova(scale, offset) {
-  const phase = clamp((offset + .68) / 1.45);
-  const radius = scale * mix(.07, .48, smooth(phase));
-  glow(context, 0, 0, radius * 1.9, [[0, "#fff2cc"], [.12, "#fff2ffd7"], [.27, "#ff9bdd9f"], [.46, "#a557d58f"], [.73, "#4241ac4b"], [1, "#5848bd00"]]);
-  const energy = context.createLinearGradient(-radius, 0, radius, 0);
-  energy.addColorStop(0, "#9769ee00");
-  energy.addColorStop(.34, "#d176ff8f");
-  energy.addColorStop(.5, "#fff8e6");
-  energy.addColorStop(.66, "#f07bbd91");
-  energy.addColorStop(1, "#9769ee00");
-  context.fillStyle = energy;
-  context.fillRect(-radius, -1, radius * 2, 2);
-  for (const rock of ejecta) {
-    const x = Math.cos(rock.angle), y = Math.sin(rock.angle);
-    const reach = radius * rock.drift;
-    context.strokeStyle = `rgba(255,168,211,${(.14 + rock.r * 3) * (1 - phase * .5)})`;
-    context.lineWidth = Math.max(.6, rock.r * scale * .02);
-    context.beginPath();
-    context.moveTo(x * reach * .36, y * reach * .36);
-    context.lineTo(x * reach, y * reach);
-    context.stroke();
-    circle(x * reach, y * reach, Math.max(.42, rock.r * scale * .026), "#ffddcebb");
-  }
-  for (const ring of [.62, .84, 1.04]) {
-    ellipse(0, 0, radius * ring, radius * ring * .91, 0, TAU, `rgba(255,182,223,${.32 * (1 - phase * .6)})`, 1.2);
-  }
-  circle(0, 0, Math.max(1, scale * .03 * (1 - phase)), "#fff7e6");
-}
-function drawEncounter(encounter) {
+let blackHoleRenderer;
+function drawBlackHole(scene) {
   context.save();
-  context.globalAlpha = encounter.opacity;
-  context.translate(width * (width < 650 ? .51 : .56), height * .53);
-  encounter.type.draw(Math.min(width * .83, height * .9), encounter.offset);
+  if (scene.phase === 2) {
+    context.globalAlpha = scene.opacity;
+    context.fillStyle = "#010106";
+    context.fillRect(0, 0, width, height);
+  } else {
+    if (blackHoleRenderer === undefined) blackHoleRenderer = createBlackHoleRenderer(nebula);
+    const image = blackHoleRenderer?.(width, height, scene.fall);
+    context.globalAlpha = scene.opacity;
+    if (image) context.drawImage(image, 0, 0, width, height);
+    else paintBlackHoleFallback(scene.fall, scene.opacity);
+    context.globalAlpha = scene.opacity * smooth((scene.fall - .82) / .18);
+    context.fillStyle = "#010106";
+    context.fillRect(0, 0, width, height);
+  }
   context.restore();
 }
 
@@ -529,7 +614,8 @@ const planets = [
 let width = 1, height = 1;
 let position = 0, target = 0, speed = 0, starTravel = 0;
 let flying = false, started = false, jump = false, lastFrame = 0, frameRequest = 0;
-let displayedStage = -1, displayedEvent = -1, displayedSegment = -1, lastDistanceUpdate = -1;
+let blackHoleEnabled = readBlackHoleSetting();
+let displayedStage = -1, displayedBlackHolePhase = -1, displayedSegment = -1, lastDistanceUpdate = -1;
 let touchY = null;
 let cachedFieldNumber = -1, cachedField = [];
 const flightButton = document.querySelector("#flight");
@@ -539,7 +625,9 @@ const description = document.querySelector("#scene-description");
 const sectionNumber = document.querySelector("#section-number");
 const distance = document.querySelector("#distance");
 const stops = [...document.querySelectorAll("[data-stop]")];
-const encounterButton = document.querySelector("#encounter");
+const blackHoleToggle = document.querySelector("#black-hole-toggle");
+const blackHoleState = document.querySelector("#black-hole-state");
+const blackHoleFlight = document.querySelector("#black-hole-flight");
 
 function resize() {
   width = window.innerWidth;
@@ -671,7 +759,7 @@ function drawDeepSpace(progress, backdrop) {
   }
 }
 
-function draw(motion, encounter) {
+function draw(motion, blackHole) {
   context.globalAlpha = 1;
   context.fillStyle = "#02030a";
   context.fillRect(0, 0, width, height);
@@ -688,13 +776,13 @@ function draw(motion, encounter) {
   context.restore();
   context.globalAlpha = 1;
   drawStars(motion);
-  const backdrop = 1 - (encounter?.opacity ?? 0) * .76;
+  const backdrop = 1 - (blackHole?.opacity ?? 0) * .76;
   if (position < 2) drawEarth(position, backdrop * (1 - smooth((position - 1.22) / .73)));
   if (position > 1.25 && position < 3) drawSolar(position, backdrop * smooth((position - 1.25) * 1.8) * (1 - smooth((position - 2.25) * 1.5)));
   if (position > 2.35 && position < 4.24) drawMilkyWay(position, backdrop * smooth((position - 2.35) * 1.9) * (1 - smooth((position - 3.58) * 1.5)));
   if (position > 3.12) drawDeepSpace(position, backdrop);
   context.globalAlpha = 1;
-  if (encounter) drawEncounter(encounter);
+  if (blackHole) drawBlackHole(blackHole);
 }
 
 const numberFormat = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 });
@@ -710,26 +798,26 @@ function formatDistance(progress) {
   if (km >= 1.495978707e8) return `${numberFormat.format(km / 1.495978707e8)} AU`;
   return `${numberFormat.format(Math.round(km))} km`;
 }
-function updateReadouts(time, encounter) {
+function updateReadouts(time, blackHole) {
   const stage = Math.min(4, Math.floor(position + .42));
   const segment = Math.floor(Math.max(0, position - 4));
-  const eventIndex = encounter && encounter.opacity > .42 ? encounter.index : -1;
-  if (stage !== displayedStage || eventIndex !== displayedEvent) {
+  const phase = blackHole && blackHole.opacity > .25 ? blackHole.phase : -1;
+  if (stage !== displayedStage || phase !== displayedBlackHolePhase) {
     displayedStage = stage;
-    displayedEvent = eventIndex;
-    const entry = eventIndex < 0 ? waypoints[stage] : encounter.type;
+    displayedBlackHolePhase = phase;
+    const entry = phase < 0 ? waypoints[stage] : blackHolePhases[phase];
     sceneName.textContent = entry.name;
-    sceneName.style.color = entry.color || "";
+    sceneName.style.color = phase < 0 ? "" : "#ffd6a0";
     description.textContent = entry.description;
     stops.forEach((stop, index) => {
       if (index === stage) stop.setAttribute("aria-current", "step");
       else stop.removeAttribute("aria-current");
     });
   }
-  if (segment !== displayedSegment || sectionNumber.dataset.stage !== String(stage)) {
+  if (segment !== displayedSegment || sectionNumber.dataset.scene !== `${stage}/${phase}`) {
     displayedSegment = segment;
-    sectionNumber.dataset.stage = stage;
-    sectionNumber.textContent = stage === 4 && segment > 0 ? `구역 ${segment + 1}` : "";
+    sectionNumber.dataset.scene = `${stage}/${phase}`;
+    sectionNumber.textContent = stage === 4 && phase < 0 && segment > 0 ? `구역 ${segment + 1}` : "";
   }
   if (time - lastDistanceUpdate > 65 || Math.abs(position - target) < .001 && !flying) {
     lastDistanceUpdate = time;
@@ -742,14 +830,14 @@ function requestFrame() {
 function frame(time) {
   frameRequest = 0;
   const elapsed = lastFrame ? (time - lastFrame) / 1000 : 0;
-  const dt = Math.min(elapsed, .05);
+  const dt = Math.min(elapsed, .16);
   lastFrame = time;
   if (flying) {
     const nearest = Math.round(position);
     const arrival = nearest <= 3 ? Math.exp(-((position - nearest) ** 2) / .025) : 0;
-    const encounter = currentEncounter(position);
-    const encounterSlowdown = (encounter?.opacity ?? 0) * .56;
-    const cruise = (1 - Math.max(.67 * arrival, encounterSlowdown)) * (reducedMotion.matches ? .5 : 1);
+    const blackHole = currentBlackHole(position);
+    const diveSlowdown = blackHole ? .67 * blackHole.opacity : 0;
+    const cruise = (1 - Math.max(.67 * arrival, diveSlowdown)) * (reducedMotion.matches ? .5 : 1);
     speed = mix(speed, cruise, 1 - Math.exp(-dt * 3.5));
     position += speed * dt;
     target = position;
@@ -761,9 +849,9 @@ function frame(time) {
     position = target;
     jump = false;
   }
-  const encounter = currentEncounter(position);
-  draw(speed, encounter);
-  updateReadouts(time, encounter);
+  const blackHole = currentBlackHole(position);
+  draw(speed, blackHole);
+  updateReadouts(time, blackHole);
   if (flying || target !== position) requestFrame();
   else lastFrame = 0;
 }
@@ -788,7 +876,7 @@ function manualMove(delta) {
 flightButton.addEventListener("click", () => setFlight(!flying));
 window.addEventListener("keydown", (event) => {
   if (event.altKey || event.ctrlKey || event.metaKey) return;
-  if (event.code === "Space" && event.target !== flightButton) {
+  if (event.code === "Space" && event.target !== flightButton && event.target !== blackHoleToggle && event.target !== blackHoleFlight) {
     event.preventDefault();
     if (!event.repeat) setFlight(!flying);
   } else if (["ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(event.key)) {
@@ -823,14 +911,25 @@ stops.forEach((stop) => {
     requestFrame();
   });
 });
-encounterButton.addEventListener("click", () => {
-  const progress = Math.max(position, target);
-  const nearest = nearestEncounter(progress);
-  const next = encounterAt(nearest) - progress > .06 ? nearest : nearest + 1;
-  setFlight(false);
-  target = encounterAt(next);
-  jump = true;
+function updateBlackHoleControls() {
+  blackHoleToggle.setAttribute("aria-checked", String(blackHoleEnabled));
+  blackHoleState.textContent = blackHoleEnabled ? "ON" : "OFF";
+  blackHoleFlight.hidden = !blackHoleEnabled;
+}
+blackHoleToggle.addEventListener("click", () => {
+  blackHoleEnabled = !blackHoleEnabled;
+  try {
+    localStorage.setItem(blackHoleSetting, blackHoleEnabled ? "on" : "off");
+  } catch {
+    // Switching still works during this visit when storage is unavailable.
+  }
+  updateBlackHoleControls();
   requestFrame();
+});
+blackHoleFlight.addEventListener("click", () => {
+  position = blackHoleRoute.entry;
+  setFlight(true);
+  flightButton.focus({ preventScroll: true });
 });
 function updateHint() {
   document.querySelector("#hint").textContent = touchInput.matches ? "위아래로 밀어 둘러보기" : "스크롤로 둘러보기";
@@ -843,6 +942,7 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("resize", resize);
 updateHint();
+updateBlackHoleControls();
 resize();
 </script>
 </body>
