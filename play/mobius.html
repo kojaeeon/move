@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b0d11">
+<meta name="description" content="하나의 면과 하나의 가장자리를 가진 뫼비우스의 띠를 3D로 탐색해 보세요.">
+<title>뫼비우스의 띠 · Möbius Strip</title>
+<style>
+:root{color-scheme:dark;--ink:#f0eee7;--muted:#a7a6ae;--gold:#f0c27e;--line:#282933;background:#0b0d11;color:var(--ink);font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-width:280px;background:radial-gradient(ellipse at 72% 23%,#171926 0,transparent 60%),#0b0d11}
+button,input,summary{font:inherit}
+button,summary{cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
+.shell{max-width:1480px;margin:auto;padding:0 clamp(18px,5vw,76px) 36px}
+.header{height:72px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:.94rem}
+.brand-icon{display:grid;place-items:center;color:var(--gold);width:31px;height:31px;border:1px solid #765d40;border-radius:50%;font:1.55rem Georgia,serif}
+.header-note,.eyebrow,#angle{font-family:ui-monospace,monospace;letter-spacing:.14em}
+.header-note{font-size:.74rem;color:var(--muted)}
+.layout{display:grid;grid-template-columns:minmax(230px, .68fr) minmax(0,1.75fr);gap:clamp(28px,5vw,85px);align-items:center;padding-top:clamp(26px,6vh,72px)}
+.eyebrow{font-size:.8rem;color:var(--gold);margin:0 0 20px}
+h1{font-family:"Songti SC","Batang",Georgia,serif;font-size:clamp(3rem,5.5vw,6rem);line-height:1.06;letter-spacing:-.082em;margin:0;font-weight:650;word-break:keep-all}
+h1 span{color:var(--gold)}
+.description{color:#c2c0c6;line-height:1.8;margin:24px 0 29px;max-width:28rem;word-break:keep-all}
+.facts{display:grid;grid-template-columns:auto auto 1fr;gap:clamp(11px,2vw,26px);margin:0;padding:16px 0;border-block:1px solid var(--line)}
+.facts div{display:flex;flex-direction:column-reverse;gap:3px}
+.facts dt{font-size:.82rem;color:var(--muted);white-space:nowrap}
+.facts dd{color:var(--gold);font:1.8rem Georgia,serif;margin:0}
+.formula{margin-top:20px;color:var(--muted);font-size:.88rem;line-height:1.65}
+.formula summary{width:max-content;color:var(--ink)}
+.formula code{color:var(--gold);font-size:.81rem}
+.exhibit{min-width:0;border:1px solid #393742;border-radius:23px;overflow:hidden;background:#101118;box-shadow:0 24px 75px #0005}
+.stage{position:relative;height:clamp(360px,58vh,650px);isolation:isolate;background:radial-gradient(ellipse at 52% 54%,#34304c 0,#202134 33%,#12131d 69%,#0c0e15 100%)}
+.stage::before{content:"";position:absolute;inset:0;background:radial-gradient(#d5c3f13a .65px,transparent .85px);background-size:24px 24px;mask-image:radial-gradient(ellipse,#000 12%,transparent 78%);pointer-events:none}
+canvas{display:block;width:100%;height:100%;position:relative;touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+canvas:focus-visible{outline-offset:-4px}
+.stage-top{position:absolute;inset:16px 17px auto;display:flex;align-items:center;justify-content:space-between;z-index:1;pointer-events:none;font-size:.87rem;color:#d8d5e1}
+.stage-top button{pointer-events:auto}
+.stage-top i,.path-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px #e5b16e9e;margin-right:6px}
+button{border:1px solid #3b3946;border-radius:8px;background:#1b1b26;color:#e8e5ed;padding:7px 12px;font-size:.87rem;min-height:38px}
+button:hover{background:#2a2737;border-color:#72627a}
+button[aria-pressed="true"],#play{background:#352a24;color:#ffda9e;border-color:#745a3d}
+.hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;margin:0;color:#c4bfce;font-size:.85rem;pointer-events:none}
+.hint b{margin:0 6px;color:var(--gold)}
+.fallback{position:absolute;inset:44% 10% auto;text-align:center;color:#e8e5ed}
+.console{padding:17px clamp(15px,3vw,26px) 18px;border-top:1px solid #363340}
+.console-head,.ticks,.controls{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.path{display:flex;align-items:center;font-size:.91rem}
+#angle{font-size:.82rem;color:var(--gold);white-space:nowrap}
+#progress{--pct:0%;width:100%;height:22px;margin:8px 0 0;appearance:none;background:transparent;cursor:pointer}
+#progress::-webkit-slider-runnable-track{height:3px;border-radius:3px;background:linear-gradient(90deg,var(--gold) var(--pct),#4a4354 var(--pct))}
+#progress::-webkit-slider-thumb{appearance:none;width:13px;height:13px;margin-top:-5px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px #f0c27e75}
+#progress::-moz-range-track{height:3px;background:#4a4354}
+#progress::-moz-range-progress{height:3px;background:var(--gold)}
+#progress::-moz-range-thumb{width:13px;height:13px;border:0;background:var(--gold);border-radius:50%}
+.ticks{font-size:.78rem;color:var(--muted)}
+.ticks span{width:33.33%}
+.ticks span:nth-child(2){text-align:center}
+.ticks span:last-child{text-align:right}
+.controls{justify-content:flex-start;flex-wrap:wrap;margin-top:16px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+@media(max-width:780px){.layout{grid-template-columns:1fr;gap:24px}.intro{display:grid;grid-template-columns:1fr;align-items:start}.eyebrow{margin-bottom:9px}h1{font-size:clamp(2.6rem,9vw,4rem)}h1 br{display:none}h1 br::after{content:" "}.description{margin:13px 0 16px}.facts{max-width:390px;padding:10px 0}.formula{margin-top:12px}.stage{height:clamp(310px,55vw,480px)}.header{height:54px}}
+@media(max-width:380px){.header-note{font-size:.61rem}.ticks{font-size:.71rem}.stage-top{inset:10px 10px auto}}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="header"><span class="brand"><span class="brand-icon" aria-hidden="true">∞</span> 기하학 전시실</span><span class="header-note">TOPOLOGY / MÖBIUS STRIP</span></header>
+<div class="layout">
+<section class="intro" aria-labelledby="title">
+<p class="eyebrow">MÖBIUS STRIP</p>
+<h1 id="title">뫼비우스의<br> 띠<span>.</span></h1>
+<p class="description">한 바퀴 돌면 폭의 방향이 뒤집힙니다. 빛점을 따라 띠에 면과 가장자리가 각각 하나뿐이라는 걸 확인해 보세요.</p>
+<dl class="facts"><div><dt>면</dt><dd>1</dd></div><div><dt>가장자리</dt><dd>1</dd></div><div><dt>반 바퀴 비틀림</dt><dd>180°</dd></div></dl>
+<details class="formula"><summary>매개변수 방정식</summary>
+<p><code>x = (R + v·cos(u/2))·cos(u)<br>y = (R + v·cos(u/2))·sin(u)<br>z = v·sin(u/2)</code></p>
+<p><var>u</var>는 중심 원의 각도, <var>v</var>는 띠 중앙에서의 폭 방향 거리입니다.</p>
+</details>
+</section>
+<section class="exhibit" aria-label="뫼비우스의 띠 인터랙티브 3D">
+<div class="stage">
+<div class="stage-top"><span><i></i> 3D 모델</span><button id="reset" type="button">시점 초기화</button></div>
+<canvas id="model" tabindex="0" aria-label="뫼비우스 띠 3D 모델. 방향키로 회전, 더하기와 빼기 키로 확대 및 축소"></canvas>
+<p class="fallback" id="fallback" hidden>이 브라우저에서 WebGL을 사용할 수 없습니다.</p>
+<p class="hint">드래그로 회전 <b>·</b> 휠 또는 두 손가락으로 확대</p>
+</div>
+<div class="console">
+<div class="console-head"><div class="path"><span class="path-dot"></span><strong>가장자리 따라가기</strong></div><output id="angle" for="progress">0° / 720°</output></div>
+<label class="sr-only" for="progress">가장자리를 따라 이동한 각도</label><input id="progress" type="range" min="0" max="720" step="1" value="0">
+<div class="ticks"><span>출발</span><span>한 바퀴</span><span>두 바퀴 · 원위치</span></div>
+<div class="controls"><button id="play" type="button">일시정지</button><button id="spin" type="button" aria-pressed="true">자동 회전</button><button id="grid" type="button" aria-pressed="false">표면 격자</button></div>
+</div>
+</section>
+</div>
+</main>
+<script>
+"use strict";
+function canvasRenderer(canvas, point, width) {
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas unavailable');
+  const segments = 116;
+  const rows = 10;
+  const fullTurn = 2 * Math.PI;
+  const light = [-0.38, 0.57, 0.73];
+  const fill = [0.81, -0.42, 0.40];
+  const grid = Array.from({ length: segments + 1 }, (_, i) =>
+    Array.from({ length: rows + 1 }, (_, j) => point(i / segments * fullTurn, width * (2 * j / rows - 1))));
+  const edge = Array.from({ length: segments * 2 + 1 }, (_, i) => point(i / segments * fullTurn, width));
+
+  return {
+    resize() {},
+    draw(angles, zoom, angle, scale, showGrid) {
+      const [sx, sy, sz] = angles.map(Math.sin);
+      const [cx, cy, cz] = angles.map(Math.cos);
+      const middleX = canvas.width / 2;
+      const middleY = canvas.height / 2;
+      const span = Math.min(middleX, middleY) * 1.94 * zoom;
+      const layers = [];
+
+      function project([x, y, z]) {
+        const x1 = cz * x - sz * y;
+        const y1 = sz * x + cz * y;
+        const x2 = cy * x1 + sy * z;
+        const z2 = -sy * x1 + cy * z;
+        const y3 = cx * y1 - sx * z2;
+        const z3 = sx * y1 + cx * z2;
+        const perspective = span / (5 - z3);
+        return [middleX + x2 * perspective, middleY - y3 * perspective, z3, x2, y3];
+      }
+
+      function surface(a, b, c, d) {
+        const x = b[3] - a[3], y = b[4] - a[4], z = b[2] - a[2];
+        const u = d[3] - a[3], v = d[4] - a[4], w = d[2] - a[2];
+        const normal = [y * w - z * v, z * u - x * w, x * v - y * u];
+        const flip = normal[2] < 0 ? -1 : 1;
+        const length = Math.hypot(...normal) || 1;
+        const [nx, ny, nz] = normal.map(value => flip * value / length);
+        const diffuse = Math.max(0, nx * light[0] + ny * light[1] + nz * light[2]);
+        const violet = Math.max(0, nx * fill[0] + ny * fill[1] + nz * fill[2]);
+        const gloss = Math.max(0, nx * -0.2 + ny * 0.31 + nz * 0.927) ** 19;
+        const rim = (1 - Math.min(1, nz)) ** 2;
+        const rgb = [
+          36 + 145 * diffuse + 39 * violet + 119 * gloss + 49 * rim,
+          27 + 92 * diffuse + 57 * violet + 86 * gloss + 32 * rim,
+          68 + 98 * diffuse + 132 * violet + 58 * gloss + 44 * rim
+        ].map(value => Math.round(Math.min(255, value)));
+        layers.push({ points: [a, b, c, d], depth: (a[2] + b[2] + c[2] + d[2]) / 4, color: 'rgb(' + rgb.join(',') + ')' });
+      }
+
+      function line(a, b, color, lineWidth, lift) {
+        layers.push({ points: [a, b], depth: (a[2] + b[2]) / 2 + lift, color, lineWidth });
+      }
+
+      const projected = grid.map(row => row.map(project));
+      for (let i = 0; i < segments; i++) {
+        for (let j = 0; j < rows; j++) {
+          const a = projected[i][j], b = projected[i + 1][j];
+          const c = projected[i + 1][j + 1], d = projected[i][j + 1];
+          surface(a, b, c, d);
+          if (showGrid && j > 0 && j % 2 === 0) line(a, b, '#ffe4cf55', scale, 0.045);
+          if (showGrid && i % 4 === 0) line(a, d, '#ffe4cf55', scale, 0.045);
+        }
+      }
+      const outline = edge.map(project);
+      for (let i = 1; i < outline.length; i++) line(outline[i - 1], outline[i], '#f5bb79de', 1.1 * scale, 0.047);
+      for (let i = 0; i <= 36; i++) {
+        const age = i / 36;
+        const glow = project(point(angle * Math.PI / 180 - 0.7 * (1 - age), width));
+        layers.push({ depth: glow[2] + 0.057, glow, age });
+      }
+      layers.sort((a, b) => a.depth - b.depth);
+
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      for (const layer of layers) {
+        if (layer.glow) {
+          const [x, y] = layer.glow;
+          const radius = (2 + 13 * layer.age ** 4) * scale;
+          const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+          gradient.addColorStop(0, layer.age > 0.98 ? '#fff4ce' : 'rgba(255,176,65,' + (0.7 * layer.age) + ')');
+          gradient.addColorStop(0.22, 'rgba(255,173,58,' + (0.65 * layer.age) + ')');
+          gradient.addColorStop(1, '#ffb04800');
+          context.fillStyle = gradient;
+          context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+          continue;
+        }
+        const [[x, y], ...remaining] = layer.points;
+        context.beginPath();
+        context.moveTo(x, y);
+        for (const [nextX, nextY] of remaining) context.lineTo(nextX, nextY);
+        context.strokeStyle = layer.color;
+        context.lineWidth = layer.lineWidth ?? 0.8 * scale;
+        if (!layer.lineWidth) {
+          context.closePath();
+          context.fillStyle = layer.color;
+          context.fill();
+        }
+        context.stroke();
+      }
+    }
+  };
+}
+
+
+const TAU = 2 * Math.PI;
+const WIDTH = 0.62;
+const IDLE = [-0.49, 0.22, -0.34];
+const byId = id => document.getElementById(id);
+const canvas = byId('model');
+const slider = byId('progress');
+
+function point(u, v) {
+  const radius = 1.56 + v * Math.cos(u / 2);
+  return [radius * Math.cos(u), radius * Math.sin(u), v * Math.sin(u / 2)];
+}
+
+function sample(u, v) {
+  const p = point(u, v);
+  const nextU = point(u + 0.0001, v);
+  const nextV = point(u, v + 0.0001);
+  const [a, b, c] = nextU.map((value, i) => value - p[i]);
+  const [d, e, f] = nextV.map((value, i) => value - p[i]);
+  const n = [b * f - c * e, c * d - a * f, a * e - b * d];
+  const length = Math.hypot(...n);
+  return [...p, ...n.map(value => value / length)];
+}
+
+const vertex = `
+attribute vec3 position;
+attribute vec3 normal;
+uniform vec3 angles;
+uniform vec2 framing;
+uniform float zoom;
+uniform float pixelRatio;
+uniform float mode;
+varying vec3 surfaceNormal;
+varying vec3 location;
+varying vec3 localPoint;
+varying float age;
+vec3 rotate(vec3 p) {
+  vec3 s = sin(angles), c = cos(angles);
+  p.xy = vec2(c.z*p.x-s.z*p.y, s.z*p.x+c.z*p.y);
+  p.xz = vec2(c.y*p.x+s.y*p.z, -s.y*p.x+c.y*p.z);
+  p.yz = vec2(c.x*p.y-s.x*p.z, s.x*p.y+c.x*p.z);
+  return p;
+}
+void main() {
+  localPoint = position;
+  location = rotate(position);
+  surfaceNormal = rotate(normal);
+  age = normal.x;
+  float depth = 5.0 - location.z;
+  gl_Position = vec4(location.xy * framing * zoom, depth - 0.4, depth);
+  gl_PointSize = pixelRatio * mix(4.0, 26.0, age);
+}`;
+
+const fragment = `
+precision mediump float;
+uniform float mode;
+varying vec3 surfaceNormal;
+varying vec3 location;
+varying vec3 localPoint;
+varying float age;
+void main() {
+  if (mode > 2.5) {
+    float r = length(gl_PointCoord - 0.5) * 2.0;
+    if (r > 1.0) discard;
+    float glow = exp(-r*r*6.0) * (1.0 - smoothstep(0.6, 1.0, r));
+    float core = (1.0-smoothstep(0.14,0.33,r))*smoothstep(0.90,1.0,age);
+    gl_FragColor = vec4(mix(vec3(1.0,0.63,0.24),vec3(1.0,0.97,0.80),core), (glow*0.68+core) * age);
+  } else if (mode > 1.5) {
+    gl_FragColor = vec4(0.97, 0.71, 0.44, 0.88);
+  } else if (mode > 0.5) {
+    gl_FragColor = vec4(0.99, 0.83, 0.75, 0.25);
+  } else {
+    vec3 n = normalize(surfaceNormal) * (gl_FrontFacing ? 1.0 : -1.0);
+    vec3 eye = normalize(vec3(0.0,0.0,5.0)-location);
+    vec3 key = normalize(vec3(-0.56,0.84,1.08));
+    vec3 fill = normalize(vec3(0.88,-0.46,0.43));
+    float diffuse = max(dot(n,key),0.0);
+    float diffuseFill = max(dot(n,fill),0.0);
+    float gloss = pow(max(dot(n,normalize(key+eye)),0.0),25.0);
+    float sheen = pow(max(dot(n,normalize(fill+eye)),0.0),9.0);
+    float rim = pow(1.0-max(dot(n,eye),0.0),2.2);
+    vec3 color = vec3(0.12,0.095,0.24);
+    color += diffuse * vec3(0.59,0.38,0.46);
+    color += diffuseFill * vec3(0.21,0.25,0.58);
+    color += gloss * vec3(0.63,0.44,0.30);
+    color += sheen * vec3(0.16,0.25,0.39);
+    color += rim * vec3(0.26,0.17,0.24);
+    float brush = 0.975 + 0.025 * sin(length(localPoint.xy)*490.0 + localPoint.z*72.0);
+    gl_FragColor = vec4(color * brush, 1.0);
+  }
+}`;
+
+function webglRenderer(gl) {
+  const program = gl.createProgram();
+  for (const [type, code] of [[gl.VERTEX_SHADER, vertex], [gl.FRAGMENT_SHADER, fragment]]) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, code);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+    gl.attachShader(program, shader);
+  }
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+  gl.useProgram(program);
+  const uniforms = Object.fromEntries(['angles', 'framing', 'zoom', 'pixelRatio', 'mode']
+    .map(name => [name, gl.getUniformLocation(program, name)]));
+  const position = gl.getAttribLocation(program, 'position');
+  const normal = gl.getAttribLocation(program, 'normal');
+  gl.enableVertexAttribArray(position);
+  gl.enableVertexAttribArray(normal);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  function mesh(vertices, dynamic = false) {
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), dynamic ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
+    return { buffer, count: vertices.length / 6 };
+  }
+
+  function draw(item, primitive, mode, data) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, item.buffer);
+    if (data) gl.bufferSubData(gl.ARRAY_BUFFER, 0, data);
+    gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 24, 0);
+    gl.vertexAttribPointer(normal, 3, gl.FLOAT, false, 24, 12);
+    gl.uniform1f(uniforms.mode, mode);
+    gl.drawArrays(primitive, 0, item.count);
+  }
+
+  const segments = 176;
+  const rows = 20;
+  const vertices = [];
+  const samples = Array.from({ length: segments + 1 }, (_, i) =>
+    Array.from({ length: rows + 1 }, (_, j) => sample(i / segments * TAU, (2 * j / rows - 1) * WIDTH)));
+  for (let i = 0; i < segments; i++) {
+    for (let j = 0; j < rows; j++) {
+      const a = samples[i][j], b = samples[i + 1][j];
+      const c = samples[i + 1][j + 1], d = samples[i][j + 1];
+      vertices.push(...a, ...b, ...c, ...a, ...c, ...d);
+    }
+  }
+  const surface = mesh(vertices);
+  const line = [];
+  for (let i = 0; i < segments; i++) {
+    for (let j = 2; j < rows; j += 2) line.push(...samples[i][j], ...samples[i + 1][j]);
+  }
+  for (let i = 0; i < segments; i += 4) {
+    for (let j = 0; j < rows; j++) line.push(...samples[i][j], ...samples[i][j + 1]);
+  }
+  const grid = mesh(line);
+  const edge = mesh(Array.from({ length: 513 }, (_, i) => [...point(2 * TAU * i / 512, WIDTH), 0, 0, 0]).flat());
+  const trail = new Float32Array(49 * 6);
+  const lights = mesh(trail, true);
+  return {
+    resize() {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    },
+    draw(angles, zoom, angle, scale, showGrid) {
+      const aspect = canvas.width / Math.max(1, canvas.height);
+      gl.uniform2f(uniforms.framing, 1.94 / Math.max(1, aspect), 1.94 * Math.min(1, aspect));
+      gl.uniform1f(uniforms.zoom, zoom);
+      gl.uniform3fv(uniforms.angles, angles);
+      gl.uniform1f(uniforms.pixelRatio, scale);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(1, 1);
+      draw(surface, gl.TRIANGLES, 0);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
+      gl.depthMask(false);
+      if (showGrid) draw(grid, gl.LINES, 1);
+      draw(edge, gl.LINE_STRIP, 2);
+      for (let i = 0; i < lights.count; i++) {
+        const age = i / (lights.count - 1);
+        trail.set([...point(angle * Math.PI / 180 - 0.7 * (1 - age), WIDTH), age, 0, 0], i * 6);
+      }
+      draw(lights, gl.POINTS, 3, trail);
+      gl.depthMask(true);
+    }
+  };
+}
+
+function start() {
+  const gl = canvas.getContext('webgl', { antialias: true, alpha: true });
+  const renderer = gl ? webglRenderer(gl) : canvasRenderer(canvas, point, WIDTH);
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const play = byId('play');
+  const spin = byId('spin');
+  const gridButton = byId('grid');
+  const angleLabel = byId('angle');
+  let playing = !reduceMotion;
+  let spinning = !reduceMotion;
+  let showGrid = false;
+  let angle = 0;
+  let zoom = 1;
+  let angles = [...IDLE];
+  let previous = 0;
+  let dirty = true;
+  let frameId;
+  let scale = 1;
+  const pointers = new Map();
+
+  function updateControls() {
+    play.textContent = playing ? '일시정지' : '재생';
+    spin.setAttribute('aria-pressed', spinning);
+    gridButton.setAttribute('aria-pressed', showGrid);
+  }
+
+  function requestDraw() {
+    dirty = true;
+    if (frameId === undefined) frameId = requestAnimationFrame(frame);
+  }
+
+  function resize() {
+    scale = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = Math.round(canvas.clientWidth * scale);
+    canvas.height = Math.round(canvas.clientHeight * scale);
+    renderer.resize();
+    requestDraw();
+  }
+
+  function setZoom(value) {
+    zoom = Math.min(2.4, Math.max(0.55, value));
+    requestDraw();
+  }
+
+  function frame(now) {
+    frameId = undefined;
+    const elapsed = previous ? Math.min(50, now - previous) : 0;
+    previous = now;
+    if (playing) {
+      angle = (angle + elapsed * 0.040) % 720;
+      dirty = true;
+    }
+    if (spinning && pointers.size === 0) {
+      angles[2] += elapsed * 0.00016;
+      angles[0] += elapsed * 0.000045;
+      dirty = true;
+    }
+    if (dirty) {
+      dirty = false;
+      const display = Math.round(angle);
+      if (slider.value !== String(display)) slider.value = display;
+      slider.style.setProperty('--pct', angle / 7.2 + '%');
+      if (angleLabel.textContent !== display + '° / 720°') angleLabel.textContent = display + '° / 720°';
+      renderer.draw(angles, zoom, angle, scale, showGrid);
+    }
+    if (playing || spinning) frameId = requestAnimationFrame(frame);
+    else previous = 0;
+  }
+
+  play.addEventListener('click', () => { playing = !playing; updateControls(); requestDraw(); });
+  spin.addEventListener('click', () => { spinning = !spinning; updateControls(); requestDraw(); });
+  gridButton.addEventListener('click', () => { showGrid = !showGrid; updateControls(); requestDraw(); });
+  byId('reset').addEventListener('click', () => {
+    angles = [...IDLE];
+    setZoom(1);
+  });
+  slider.addEventListener('input', () => {
+    playing = false;
+    angle = Number(slider.value);
+    updateControls();
+    requestDraw();
+  });
+  canvas.addEventListener('pointerdown', event => {
+    canvas.setPointerCapture(event.pointerId);
+    pointers.set(event.pointerId, [event.clientX, event.clientY]);
+    spinning = false;
+    updateControls();
+    requestDraw();
+  });
+  canvas.addEventListener('pointermove', event => {
+    if (!pointers.has(event.pointerId)) return;
+    const [x, y] = pointers.get(event.pointerId);
+    const dx = event.clientX - x;
+    const dy = event.clientY - y;
+    if (pointers.size === 1) {
+      angles[1] += dx * 0.009;
+      angles[0] += dy * 0.009;
+    } else if (pointers.size === 2) {
+      const [otherX, otherY] = [...pointers].find(([id]) => id !== event.pointerId)[1];
+      const previousDistance = Math.hypot(x - otherX, y - otherY);
+      if (previousDistance > 0) setZoom(zoom * Math.hypot(x + dx - otherX, y + dy - otherY) / previousDistance);
+    }
+    pointers.set(event.pointerId, [event.clientX, event.clientY]);
+    requestDraw();
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    canvas.addEventListener(type, event => pointers.delete(event.pointerId));
+  }
+  canvas.addEventListener('wheel', event => {
+    event.preventDefault();
+    setZoom(zoom * Math.exp(-0.0013 * event.deltaY));
+  }, { passive: false });
+  canvas.addEventListener('keydown', event => {
+    switch (event.key) {
+      case 'ArrowLeft': angles[1] -= 0.14; break;
+      case 'ArrowRight': angles[1] += 0.14; break;
+      case 'ArrowUp': angles[0] -= 0.14; break;
+      case 'ArrowDown': angles[0] += 0.14; break;
+      case '+': case '=': setZoom(zoom * 1.11); break;
+      case '-': setZoom(zoom / 1.11); break;
+      default: return;
+    }
+    event.preventDefault();
+    spinning = false;
+    updateControls();
+    requestDraw();
+  });
+  updateControls();
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+}
+
+try {
+  start();
+} catch (error) {
+  console.error(error);
+  byId('fallback').hidden = false;
+  for (const id of ['play', 'spin', 'grid', 'progress', 'reset']) byId(id).disabled = true;
+}
+</script>
+</body>
+</html>
