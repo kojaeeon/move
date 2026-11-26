@@ -28,11 +28,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RUN_ID=44317284700
+          RUN_ID=45840973123
           gh run watch "$RUN_ID" --repo kojaeeon/ezTerm --exit-status --interval 30
           gh api "repos/kojaeeon/ezTerm/actions/runs/$RUN_ID" > /tmp/ezterm-run.json
           SOURCE_SHA=$(jq -er '.head_sha' /tmp/ezterm-run.json)
-          test "$SOURCE_SHA" = '06063e42818f4b2267fe61534a055a566f1a2bc2'
+          test "$SOURCE_SHA" = 'e64881020845656f6fc07983466dc9f559cc2db3'
           gh api "repos/kojaeeon/ezTerm/actions/runs/$RUN_ID/artifacts" > /tmp/ezterm-artifacts.json
           ARTIFACT_ID=$(jq -er '[.artifacts[] | select(.name == "ezTerm-windows-x64-exe" and .expired == false)][0].id' /tmp/ezterm-artifacts.json)
           DIGEST=$(jq -er '[.artifacts[] | select(.name == "ezTerm-windows-x64-exe" and .expired == false)][0].digest' /tmp/ezterm-artifacts.json)
@@ -43,14 +43,15 @@ jobs:
           grep -Fx 'ezterm.exe' /tmp/ezterm-portable-files.txt
           grep -Fx 'helix/hx.exe' /tmp/ezterm-portable-files.txt
           grep -E '^helix/runtime/queries/[^/]+/highlights\.scm$' /tmp/ezterm-portable-files.txt >/dev/null
-          mkdir -p ezterm
-          cp /tmp/ezterm-portable.zip ezterm/ezTerm-portable-windows-x64.zip
-          sha256sum ezterm/ezTerm-portable-windows-x64.zip > ezterm/SHA256SUMS
-          cat > ezterm/README.md <<EOF
+          mkdir -p portable/ezterm
+          cp /tmp/ezterm-portable.zip portable/ezterm/ezTerm-portable-windows-x64.zip
+          sha256sum portable/ezterm/ezTerm-portable-windows-x64.zip > portable/ezterm/SHA256SUMS
+          cat > portable/ezterm/README.md <<EOF
           # ezTerm portable (Windows x64)
 
           Extract ezTerm-portable-windows-x64.zip, then run ezterm.exe with the helix folder beside it.
           Press Ctrl+Shift+E in an SSH, CMD or PowerShell tab to open the ezedit command prompt.
+          SSH: run from an idle shell prompt; pwd prefills the remote folder before you append a file name.
           Microsoft Edge WebView2 Runtime must be available on the PC.
           This EXE-only build does not include the optional VcXsrv distribution.
 
@@ -64,7 +65,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ezterm
+          git add -- portable/ezterm
           if git diff --cached --quiet; then
             echo 'Portable is already up to date.'
             exit 0
