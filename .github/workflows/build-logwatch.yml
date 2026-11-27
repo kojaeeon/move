@@ -1,0 +1,154 @@
+name: Build Logwatch portable
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-logwatch.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-logwatch
+  cancel-in-progress: true
+
+env:
+  SOURCE_SHA: ed9934f396525f6fab8c2a0c967621b4bc82ce27
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} x64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rustflags: ''
+          - platform: windows
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            rustflags: '-C target-feature=+crt-static'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: kojaeeon/rust_toy
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test and build
+        working-directory: logwatch
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          RUSTFLAGS: ${{ matrix.rustflags }}
+          LIBZ_SYS_STATIC: '1'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          rustup toolchain install stable --profile minimal --target "$TARGET"
+          cargo +stable test --locked --target "$TARGET" --features ssh2/vendored-openssl
+          cargo +stable build --locked --release --target "$TARGET" --features ssh2/vendored-openssl
+      - name: Package and smoke-test
+        working-directory: logwatch
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          PACKAGE_OS: ${{ matrix.platform }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import tarfile
+          import tempfile
+          import tomllib
+          import zipfile
+
+          platform = os.environ["PACKAGE_OS"]
+          target = os.environ["TARGET"]
+          version = tomllib.loads(Path("Cargo.toml").read_text(encoding="utf-8"))["package"]["version"]
+          binary = "logwatch.exe" if platform == "windows" else "logwatch"
+          extension = "zip" if platform == "windows" else "tar.gz"
+          output = Path("package").resolve()
+          output.mkdir()
+          archive = output / f"logwatch-{version}-{platform}-x64-portable.{extension}"
+          sources = {
+              binary: Path("target") / target / "release" / binary,
+              "logwatch.toml": Path("logwatch.toml"),
+              "README.md": Path("README.md"),
+              "logs/application.log": Path("logs/application.log"),
+          }
+          with tempfile.TemporaryDirectory() as temp:
+              build = Path(temp) / "BUILD.txt"
+              build.write_text(f'Source commit: {os.environ["SOURCE_SHA"]}\nTarget: {target}\n', encoding="utf-8")
+              sources["BUILD.txt"] = build
+              verify = Path(temp) / "verify"
+              if platform == "windows":
+                  with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+                      for name, source in sources.items():
+                          bundle.write(source, name)
+                  with zipfile.ZipFile(archive) as bundle:
+                      assert bundle.testzip() is None
+                      bundle.extractall(verify)
+              else:
+                  with tarfile.open(archive, "w:gz") as bundle:
+                      for name, source in sources.items():
+                          bundle.add(source, name)
+                  with tarfile.open(archive) as bundle:
+                      bundle.extractall(verify, filter="data")
+                  libraries = subprocess.check_output(["ldd", str(verify / binary)], text=True)
+                  assert not re.search(r"lib(?:ssl|crypto|ssh2|z)\.so", libraries), libraries
+              for name, source in sources.items():
+                  assert (verify / name).read_bytes() == source.read_bytes(), name
+              help_output = subprocess.check_output([str(verify / binary), "--help"], cwd=verify, encoding="utf-8")
+              assert "--ssh" in help_output and "--remote-path" in help_output, help_output
+              dump = subprocess.check_output([str(verify / binary), "--dump"], cwd=verify, encoding="utf-8")
+              assert re.search(r"(?m)^[1-9]\d* events$", dump), dump
+          checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
+          Path(str(archive) + ".sha256").write_bytes(f"{checksum}  {archive.name}\n".encode("ascii"))
+          print(f"{checksum}  {archive.name}")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logwatch-${{ matrix.platform }}-x64
+          path: logwatch/package/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: logwatch-*-x64
+          path: portable/logwatch
+          merge-multiple: true
+      - name: Verify and publish both portable packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd portable/logwatch
+            sha256sum --check ./*-linux-x64-portable.tar.gz.sha256 ./*-windows-x64-portable.zip.sha256
+          )
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- portable/logwatch
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publish Logwatch portable from $SOURCE_SHA"
+          git pull --rebase origin main
+          git push origin HEAD:main
