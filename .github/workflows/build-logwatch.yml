@@ -42,7 +42,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Test and build
+      - name: Test and build Linux
+        if: matrix.platform == 'linux'
         working-directory: logwatch
         shell: bash
         env:
@@ -53,8 +54,29 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           rustup toolchain install stable --profile minimal --target "$TARGET"
-          cargo +stable test --locked --target "$TARGET" --features ssh2/vendored-openssl
+          cargo +stable test --release --locked --target "$TARGET" --features ssh2/vendored-openssl
           cargo +stable build --locked --release --target "$TARGET" --features ssh2/vendored-openssl
+      - name: Test and build Windows with native Perl
+        if: matrix.platform == 'windows'
+        working-directory: logwatch
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+          RUSTFLAGS: ${{ matrix.rustflags }}
+          LIBZ_SYS_STATIC: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $perlBin = 'C:\Strawberry\perl\bin'
+          if (-not (Test-Path (Join-Path $perlBin 'perl.exe'))) {
+            choco install strawberryperl --yes --no-progress
+          }
+          $env:PATH = "$perlBin;$env:PATH"
+          & (Join-Path $perlBin 'perl.exe') -MLocale::Maketext::Simple -e 'print qq(Native Perl ready\n)'
+          if ((git rev-parse HEAD) -ne $env:SOURCE_SHA) { throw 'Unexpected source commit' }
+          rustup toolchain install stable --profile minimal --target $env:TARGET
+          cargo +stable test --release --locked --target $env:TARGET --features ssh2/vendored-openssl
+          cargo +stable build --locked --release --target $env:TARGET --features ssh2/vendored-openssl
       - name: Package and smoke-test
         working-directory: logwatch
         shell: bash
